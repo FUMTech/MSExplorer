@@ -1147,3 +1147,287 @@ def smq(microservices, graph):
 
 SMQ = smq(candidate_state,G)
 print(SMQ)
+
+
+# %%
+
+# %%
+
+def extract_domain_terms_from_class(java_code): #Better to be caclulated by weights
+    """Extract domain terms from a Java class."""
+    tree = javalang.parse.parse(java_code)
+    domain_terms = set()
+
+    for _, type_decl in tree.filter(javalang.tree.TypeDeclaration):
+        # Add class name
+        domain_terms.add(type_decl.name)
+        
+        # Add annotations
+        if type_decl.annotations:
+            domain_terms.update([annotation.name for annotation in type_decl.annotations])
+
+
+            # 0:
+            # 'modifiers'
+            # 1:
+            # 'annotations'
+            # 2:
+            # 'documentation'
+            # 3:
+            # 'name'
+            # 4:
+            # 'body'
+            # 5:
+            # 'type_parameters'
+            # 6:
+            # 'extends'
+            # 7:
+            # 'implements'
+
+        for _, method in type_decl.filter(javalang.tree.MethodDeclaration):
+            # Add method name
+            domain_terms.add(method.name)
+            
+            # Add thrown exceptions
+            if method.throws:
+                domain_terms.update(method.throws)
+
+            # Add parameter names and types
+            domain_terms.update([param.name for param in method.parameters])
+            domain_terms.update([param.type.name for param in method.parameters if param.type])
+            
+            # Add return type if exists
+            if method.return_type:
+                domain_terms.add(method.return_type.name)
+
+            # Add local variables from the method
+            for _, local_var in method.filter(javalang.tree.LocalVariableDeclaration):
+                domain_terms.update([decl.name for decl in local_var.declarators])
+
+            # 0:
+            # 'documentation'
+            # 1:
+            # 'modifiers'
+            # 2:
+            # 'annotations'
+            # 3:
+            # 'type_parameters'
+            # 4:
+            # 'return_type'
+            # 5:
+            # 'name'
+            # 6:
+            # 'parameters'
+            # 7:
+            # 'throws'
+            # 8:
+            # 'body'
+
+        # Add field names and types
+        for _, field in type_decl.filter(javalang.tree.FieldDeclaration):
+            domain_terms.update([field_decl.name for field_decl in field.declarators])
+            if field.type:
+                domain_terms.add(field.type.name)
+
+
+            # 0:
+            # 'documentation'
+            # 1:
+            # 'modifiers'
+            # 2:
+            # 'annotations'
+            # 3:
+            # 'type'
+            # 4:
+            # 'declarators'
+
+        # Extract comments tooks long time(most spending in comparison to other parts)
+        for _, comment in type_decl.filter(javalang.tree.Documented):
+            if comment.documentation is not None:
+                domain_terms.update(comment.documentation.split('\n'))
+
+    return domain_terms
+
+
+def compute_cohesion(classes, get_class_code):
+    total_links = 0
+    for i in range(len(classes)):
+        class_code_i = get_class_code(classes[i])
+        terms_i = extract_domain_terms_from_class(class_code_i)
+        for j in range(i + 1, len(classes)):
+            class_code_j = get_class_code(classes[j])
+            terms_j = extract_domain_terms_from_class(class_code_j)
+            total_links += iou(terms_i, terms_j)
+    num_classes = len(classes)
+    return total_links / (num_classes * (num_classes - 1) / 2) if num_classes > 1 else 0
+
+def compute_coupling(classes_m, classes_n, get_class_code):
+    total_links = 0
+    for class_id_m in classes_m:
+        class_code_m = get_class_code(class_id_m)
+        terms_m = extract_domain_terms_from_class(class_code_m)
+        for class_id_n in classes_n:
+            class_code_n = get_class_code(class_id_n)
+            terms_n = extract_domain_terms_from_class(class_code_n)
+            total_links += iou(terms_m, terms_n)
+    return total_links / (len(classes_m) * len(classes_n))
+
+def find_CMQ(candidate_microservices):
+    N = len(candidate_microservices)
+    cohesion_values = []
+    coupling_values = []
+
+    def get_class_code(class_id):
+        # This function retrieves the code for a given class_id
+        for file, info in lexical_info.items():
+            for class_name in info['CN']:
+                if class_name.lower() == class_id_to_name[class_id]:
+                    return info['CODE']
+
+    for m in candidate_microservices:
+        classes_m = set()
+        for submodule in m:
+            classes_m.update(submodules.get(submodule, set()))
+        cohesion_values.append(compute_cohesion(list(classes_m), get_class_code))
+
+        for n in candidate_microservices:
+            if m != n:
+                classes_n = set()
+                for submodule in n:
+                    classes_n.update(submodules.get(submodule, set()))
+                coupling_values.append(compute_coupling(list(classes_m), list(classes_n), get_class_code))
+
+    CMQ = sum(cohesion_values)/N - sum(coupling_values)/(N*(N-1)/2)
+    return CMQ
+
+CMQ = find_CMQ(candidate_microservices=candidate_state)
+print(CMQ)
+
+
+# %%
+import git
+
+# Path to your local git project
+repo_path = '/home/amir/Desktop/java-uuid-generator'
+repo = git.Repo(repo_path)
+
+commit_history = {}
+
+# Iterate through each commit
+for commit in repo.iter_commits():
+    changed_files = set()
+
+    # For each changed file in the commit
+    for item in commit.stats.files.keys():
+        # Assuming Java files; adjust the condition for other languages
+        if item.endswith('.java'):
+            # Extract class name from file name
+            class_name = item.split('/')[-1].replace('.java', '')
+            changed_files.add(class_name)
+    if len(changed_files) > 1 : # If one class in a commit changes, doesn't it mean that it is independent?
+        commit_history[commit.hexsha] = changed_files
+
+# Now commit_history dictionary is populated
+# print(commit_history)
+
+
+from itertools import combinations
+
+# For each pair of classes, count how many times they changed together
+def count_co_changes(commit_history):
+    co_change_count = {}
+
+    for classes in commit_history.values():
+        for class1, class2 in combinations(classes, 2):
+            if (class1.lower(), class2.lower()) not in co_change_count:
+                co_change_count[(class1.lower(), class2.lower())] = 0
+            co_change_count[(class1.lower(), class2.lower())] += 1
+            
+            if (class2.lower(), class1.lower()) not in co_change_count:
+                co_change_count[(class2.lower(), class1.lower())] = 0
+            co_change_count[(class2.lower(), class1.lower())] += 1
+
+    return co_change_count
+
+
+
+def calculate_ICF(microservices, commit_history):
+    co_change_count = count_co_changes(commit_history)
+    total_icfm = 0
+
+    for microservice in microservices:
+
+        # Initialize a set to store all class IDs for the current microservice
+        classes = set()
+        for submodule in microservice:
+            # Update the set with class IDs for each submodule in the microservice
+            classes.update(submodules.get(submodule, set()))
+
+        icfm = 0
+
+        if len(microservice) > 1:
+            for class1, class2 in combinations(classes, 2):
+                icfm += co_change_count.get((class_id_to_name[class1], class_id_to_name[class2]), 0)
+        else:
+            icfm = 1
+
+        icfm /= len(classes) ** 2
+        total_icfm += icfm
+
+    ICF = total_icfm / len(microservices)
+    return ICF
+
+
+
+ICF = calculate_ICF(candidate_state, commit_history)
+print(ICF)
+
+
+# %%
+
+# Assuming commit_history is already populated
+
+
+
+def compute_ecf(microservices, co_changes):
+
+    total_ecfm = 0
+
+    all_classes = set()
+    for microservice in microservices:
+        for submodule in microservice:
+            # Update the set with class IDs for each submodule in the microservice
+            all_classes.update(submodules.get(submodule, set()))
+
+    for microservice in microservices:
+        Cm = set()
+        for submodule in microservice:
+            # Update the set with class IDs for each submodule in the microservice
+            Cm.update(submodules.get(submodule, set()))
+
+        Cm_prime = all_classes - Cm
+        sum_f_cmt = 0
+
+        for ci in Cm:
+            for cj in Cm_prime:
+                pair = tuple(sorted([class_id_to_name[ci],class_id_to_name[cj]]))
+                sum_f_cmt += co_changes.get(pair, 0)
+
+        ecfm = (1 / len(Cm)) * (1 / len(Cm_prime)) * sum_f_cmt
+        total_ecfm += ecfm
+
+    ECF = total_ecfm / len(microservices)
+    return ECF
+
+
+
+co_change_count = count_co_changes(commit_history)
+ECF = compute_ecf(candidate_state, co_change_count)
+
+print(ECF)
+
+
+
+REI = ECF / ICF
+
+print(REI)
