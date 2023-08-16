@@ -1,4 +1,4 @@
-# %%
+#%%
 import mysql.connector
 from collections import defaultdict
 import networkx as nx
@@ -7,8 +7,13 @@ import networkx as nx
 host='127.0.0.1'
 user='root'
 password='root'
-database = 'java-uuid-generator'
+# database = 'java-uuid-generator'
+database = 'ftgo-monolith'
 port = '3308'
+# directory_path = "/home/amir/Desktop/MetricTool/java-uuid-generator-java-uuid-generator-3.1.5"  # Replace with your directory
+directory_path = "/home/amir/Desktop/PJ/MonoMicro/ftgo-monolith"  # Replace with your directory
+
+# %%
 
 def connect_to_database(host, user, password, database,port):
     """Create a connection to a MySQL database."""
@@ -40,6 +45,202 @@ def close_database_connection(cnx):
 
 
 # %%
+class_id_to_name ={}
+
+
+
+def get_all_classes():
+    cnx = connect_to_database(host, user, password, database,port)
+        
+    query = '''
+    select 
+    lc.class_id,
+    lc.class_name
+    from list_class lc
+        '''
+    results = execute_query(cnx, query)
+    close_database_connection(cnx)
+    return results
+
+
+# %%
+import os
+import javalang
+from collections import defaultdict
+
+import re
+
+# Extract conseptual coupling features from code + enums feature of structural coupling
+all_classes = get_all_classes()
+
+def parse_java_file(file_path):
+    with open(file_path, 'r') as file:
+        java_code = file.read()
+    return javalang.parse.parse(java_code)
+
+def find_enums(directory):
+    enums_list = []
+    i=1
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if file.endswith('.java'):
+                file_path = os.path.join(root, file)
+                try:
+                    java_tree = parse_java_file(file_path)
+
+                    # Extract package name
+                    package_name = java_tree.package.name if java_tree.package else "default"
+
+                    # Get all enum declarations
+                    enums = [node for _, node in java_tree.filter(javalang.parser.tree.EnumDeclaration)]
+                    if len(enums)>0: #Found any enum
+                        enum_info = [(e.name,package_name,len(all_classes)+i) for e in enums]
+                        enums_list += enum_info
+                        i+=1
+                    
+                except Exception as e:
+                    print(e)
+
+    return enums_list
+
+
+enums = find_enums(directory_path)
+for enum in enums:
+    class_id_to_name[enum[2]] = enum[0].lower()
+    all_classes.append((enum[2],enum[0].lower()))
+
+has_parameter_results=[]
+is_of_type_results = []
+referece_results = []
+call_results =[]
+implement_results= []
+return_results = []
+inheritance_results = []
+
+def find_enum_relationships(tree, enums_info):
+    
+    class_package = tree.package.name if tree.package else "default"
+
+    for _,a_class in tree.filter(javalang.parser.tree.ClassDeclaration):
+
+        # Enum Has Parameter (HP)
+        for _, method in a_class.filter(javalang.parser.tree.MethodDeclaration):
+            for param in method.parameters:
+                matches = [enum for enum in enums_info if enum[0] == param.type.name]
+                if len(matches)>0:
+                    for match in matches:
+                        has_parameter_results.append(([c[0] for c in all_classes if c[1] == a_class.name.lower()][0],class_package,match[2],match[1]))
+                        # print("Has Parameter (HP): Enum {} used in method {} from class {} in package {} at {}".format(param.type.name, method.name,a_class.name, class_package, param.position))
+
+        # Enum Reference (RE)
+        for _, ref in a_class.filter(javalang.parser.tree.MemberReference):
+            matches = [enum for enum in enums_info if enum[0] == ref.qualifier]
+            if len(matches)>0:
+                for match in matches:
+                    referece_results.append((match[2],match[1],[c[0] for c in all_classes if c[1] == a_class.name.lower()][0],class_package))
+                    # print("Reference (RE): Enum {} referenced in class {} from package {} at {}".format(ref.qualifier, a_class.name, class_package, ref.position))
+
+        # Enum Calls (CA)
+        for _, method_invocation in a_class.filter(javalang.parser.tree.MethodInvocation):
+            matches = [enum for enum in enums_info if enum[0] == method_invocation.qualifier]
+            if len(matches)>0:
+                for match in matches:
+                    call_results.append(([c[0] for c in all_classes if c[1] == a_class.name.lower()][0],class_package,match[2],match[1]))
+                    # print("Calls (CA): Enum {} method {} called in class {} from package {} at {}".format(method_invocation.qualifier, method_invocation.member, a_class.name,class_package, method_invocation.position))
+
+        # Enum Is-of-Type (IT)
+        for _, field in a_class.filter(javalang.parser.tree.FieldDeclaration):
+            matches = [enum for enum in enums_info if enum[0] == field.type.name]
+            if len(matches)>0:
+                for match in matches:
+                    is_of_type_results.append((match[2],match[1],[c[0] for c in all_classes if c[1] == a_class.name.lower()][0],class_package))
+                    # print("Is-of-Type (IT): Field {} of type Enum {} in class {} from package {} at {}".format(field.declarators[0].name, field.type.name,a_class.name, class_package, field.position))
+
+        # Enum Return (RT)
+        for _, method in a_class.filter(javalang.parser.tree.MethodDeclaration):
+            matches = [enum for enum in enums_info if method.return_type and enum[0] == method.return_type.name]
+            if len(matches)>0:
+                for match in matches:
+                    return_results.append(([c[0] for c in all_classes if c[1] == a_class.name.lower()][0],class_package,match[2],match[1]))
+                    # print("Return (RT): method {} from class  {} in package {} returns Enum {} at {}".format(method.name,a_class.name, class_package, method.return_type.name, method.position))
+
+
+
+
+def extract_comments(file_path):
+    with open(file_path, 'r') as file:
+        java_code = file.read()
+
+    # Regular expression pattern to match Java comments
+    pattern = r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"|\w+'
+
+    # Find all matches of the pattern in the Java code
+    matches = re.findall(pattern, java_code, re.DOTALL | re.MULTILINE)
+
+    # Filter out non-comment matches
+    comments = [match for match in matches if match.startswith('//') or match.startswith('/*')]
+
+    return comments
+
+
+
+
+def extract_lexical_information(java_tree):
+    class_info = defaultdict(list)
+    for path, node in java_tree:
+        if isinstance(node, javalang.parser.tree.ClassDeclaration):
+            class_info['CN'].append(node.name)  # Class Name
+        elif isinstance(node, javalang.parser.tree.FieldDeclaration):
+            class_info['AN'].extend([field.name for field in node.declarators])  # Attribute Name
+        elif isinstance(node, javalang.parser.tree.MethodDeclaration):
+            class_info['MN'].append(node.name)  # Method Name
+            class_info['PN'].extend([param.name for param in node.parameters])  # Parameter Name
+        elif isinstance(node, javalang.parser.tree.Statement):
+            class_info['SCS'].append(node)  # Source Code Statement
+        elif isinstance(node, javalang.parser.tree.EnumDeclaration):
+            class_info['CN'].append(node.name)  # Enum Name
+    return class_info
+
+def analyze_directory(directory):
+    all_class_info = {}
+    class_list = []
+    global all_classes
+
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if file.endswith('.java'):
+                file_path = os.path.join(root, file)
+                try:
+                    java_tree = parse_java_file(file_path)
+                    class_info = extract_lexical_information(java_tree)
+
+                    #Section of finding Directories enum usage
+                    for class_i in class_info['CN']:
+                        new_class_info = [(a_class[0],a_class[1],root)for a_class in all_classes if a_class[1] == class_i.lower()]
+                        class_list += new_class_info
+
+                    #End of section of finding Enums feature
+                    find_enum_relationships(java_tree,enums)
+
+
+                    comments = extract_comments(file_path)
+                    class_info['CO'].extend( comments )  # Comments
+
+                    with open(file_path, 'r') as file:
+                        java_code = file.read()
+                    class_info['CODE'] = java_code
+                    all_class_info[file] = class_info
+                except Exception as e:
+                    print(f"Failed to parse {file_path} due to {str(e)}")
+    
+    all_classes =  class_list
+    return all_class_info
+
+
+lexical_info = analyze_directory(directory_path)
+
+
+# %%
 
 cnx = connect_to_database(host, user, password, database,port)
 
@@ -63,8 +264,9 @@ CROSS JOIN JSON_TABLE(CONCAT('["', REPLACE(parameter_list, '<', '","'), '"]'),
 '$[*]' COLUMNS (parameter_list TEXT PATH '$')) jsontable
 join list_class lc on replace(jsontable.parameter_list,'>','') = lc.class_name
 join list_class lc2 on lc2.class_id = lm.method_class_id
+where lm.method_class_id != lc.class_id
 '''
-has_parameter_results = execute_query(cnx, has_parameter_query)
+has_parameter_results += execute_query(cnx, has_parameter_query)
 
 print(has_parameter_results)
 print('------------------------------has_parameter---------------------------------')
@@ -86,9 +288,10 @@ JOIN
 list_class lc ON REPLACE(REPLACE(REPLACE(REPLACE(lf.field_type, '[', ''), ']', ''),'enumeration<',''),'>','') = lc.class_name
 JOIN 
 list_class lc2 ON lf.field_class_id = lc2.class_id
-
+where lf.field_class_id != lc.class_id 
+#and lf.field_method_id = 0
 '''
-is_of_type_results = execute_query(cnx, is_of_type_query)
+is_of_type_results += execute_query(cnx, is_of_type_query)
 #removing records of system data type have to be added
 
 print(is_of_type_results)
@@ -111,9 +314,9 @@ list_class lc1 ON lc1.class_id = at.attr_class_id
 JOIN 
 list_class lc2 ON lc2.class_id = lm.method_class_id
 
-where at.class_id != lm.method_class_id
+where at.attr_class_id != lm.method_class_id
 '''
-referece_results = execute_query(cnx, referece_query)
+referece_results += execute_query(cnx, referece_query)
 
 print(referece_results)
 print('------------------------------referece---------------------------------')
@@ -121,12 +324,10 @@ print('------------------------------referece---------------------------------')
 
 call_query = '''
 SELECT  
-mcr.class_id as source_class_id,
-lc1.package_name,
-#    lc1.class_name AS source_class_name,
 lm.method_class_id  AS referenced_class_id,
-lc2.package_name
-#    lc2.class_name  AS referenced_class_name
+lc2.package_name,
+mcr.class_id as source_class_id,
+lc1.package_name
 FROM
 method_class_relations mcr 
 join
@@ -139,7 +340,7 @@ where
 mcr.class_id != lm.method_class_id
 
 '''
-call_results = execute_query(cnx, call_query)
+call_results += execute_query(cnx, call_query)
 
 
 print(call_results)
@@ -165,9 +366,8 @@ CROSS JOIN JSON_TABLE(CONCAT('["', REPLACE(class_parents_interface, '<', '","'),
 '$[*]' COLUMNS (class_parents_interface TEXT PATH '$')) jsontable
 join list_class lc1 on replace(jsontable.class_parents_interface,'>','') = lc1.class_name
 where ls.class_id != lc1.class_id
-
 '''
-implement_results = execute_query(cnx, implement_query)
+implement_results += execute_query(cnx, implement_query)
 
 print(implement_results)
 print('----------------------------implement-----------------------------------')
@@ -185,7 +385,7 @@ from list_method lm join list_class lc1 on lm.method_output_type = lc1.class_nam
 where lm.method_class_id != lc1.class_id
 
 '''
-return_results = execute_query(cnx, return_query)
+return_results += execute_query(cnx, return_query)
 
 print(return_results)
 print('--------------------------------return-------------------------------')
@@ -193,24 +393,24 @@ print('--------------------------------return-------------------------------')
 
 inheritance_query = '''
 SELECT 
-ls.class_id,
-ls.package_name,
-#    ls.class_name,
 lc.class_id,
-lc.package_name
-#   replace(jsontable.class_parents,'>','') as class_parents
+lc.package_name,
+ls.class_id,
+ls.package_name
 FROM 
 (SELECT ls.class_id, ls.class_name,ls.package_name, jsontable.class_parents
 FROM list_class AS ls
-CROSS JOIN JSON_TABLE(CONCAT('["', REPLACE(class_parents, ',', '","'), '"]'),
+CROSS JOIN JSON_TABLE(CONCAT('["', SUBSTRING_INDEX(REPLACE(class_parents, ',', '","'), '","', 1), '"]'),
 '$[*]' COLUMNS (class_parents TEXT PATH '$')) jsontable
 WHERE jsontable.class_parents <> '') as ls
 
-CROSS JOIN JSON_TABLE(CONCAT('["', REPLACE(class_parents, '<', '","'), '"]'),
+CROSS JOIN JSON_TABLE(CONCAT('["', SUBSTRING_INDEX(REPLACE(class_parents, '<', '","'), '","', 1), '"]'),
 '$[*]' COLUMNS (class_parents TEXT PATH '$')) jsontable
 join list_class lc on replace(jsontable.class_parents,'>','') = lc.class_name
+where ls.class_id != lc.class_id
 '''
-inheritance_results = execute_query(cnx, inheritance_query)
+inheritance_results += execute_query(cnx, inheritance_query)
+
 
 print(inheritance_results)
 print('-------------------------------inheritance--------------------------------')
@@ -223,7 +423,13 @@ close_database_connection(cnx)
 # %%
 
 class_couplings = inheritance_results + return_results + implement_results + call_results + referece_results + is_of_type_results + has_parameter_results 
-class_couplings
+# class_couplings
+
+
+def get_directory(class_id):
+    for a_class in all_classes:
+        if a_class[0] == class_id:
+            return a_class[2]
 
 # %%
 import networkx as nx
@@ -232,56 +438,63 @@ from collections import defaultdict
 # Create the directed graph
 G = nx.DiGraph()
 G_intra = nx.DiGraph()  # Graph for intra-coupling only
+G_inter = nx.DiGraph()  # Graph for intra-coupling only
 
 for pair in class_couplings:
     source_id, source_module, ref_id, ref_module = pair
     G.add_edge(source_id, ref_id)  # Add all edges to the graph
     if source_module == ref_module:  # Add intra-coupling edges to the intra-coupling graph
         G_intra.add_edge(source_id, ref_id)
+    else:
+        G_inter.add_edge(source_id, ref_id)
 
 # Compute in-degree and out-degree per node
-in_degrees = dict(G.in_degree())
-out_degrees = dict(G.out_degree())
+in_degrees = dict(G_inter.in_degree())
+out_degrees = dict(G_inter.out_degree())
 
 # Filter nodes based on given criteria
 inter_coupling_nodes = {node for node, deg in in_degrees.items() if deg > 3} | \
                        {node for node, deg in out_degrees.items() if deg > 1}
 
-# Create submodules
+# inter_coupling_nodes.remove(26)
+# inter_coupling_nodes.remove(31)
+
+# Create submodules                   
 submodule_count = 1
-submodules = defaultdict(set)  # use set to avoid duplicates
-nodes_in_submodules = set()  # Keep track of nodes that are already in submodules
+submodules = defaultdict(set)
+nodes_in_submodules = set()
 
+directories = defaultdict(set)
+for node in G.nodes():
+    directory = get_directory(node)
+    directories[directory].add(node)
+    
+related_files = []
 for node in inter_coupling_nodes:
-    if node in G_intra:  # Only process the node if it exists in G_intra
-        # Perform a depth-first search starting from the node on the intra-coupling graph
-        related_files = list(nx.dfs_preorder_nodes(G_intra, node))
+    directory = get_directory(node)
+    if node in G_intra:
+        related_files = list(nx.dfs_preorder_nodes(G_intra.subgraph(directories[directory]), node))
+  
 
-        # Include only nodes that are not already in other submodules
-        related_files = [file for file in related_files if file not in nodes_in_submodules]
-        nodes_in_submodules.update(related_files)
-
-        if related_files:  # Only create a new submodule if there are nodes to add
-            submodules[f'S{submodule_count}'].update(related_files)
-            submodule_count += 1
-
-# Create separate submodules for remaining files
+    related_files = [f for f in related_files if f not in nodes_in_submodules] 
+    nodes_in_submodules.update(related_files)
+    
+    if related_files:
+        submodules[f'S{submodule_count}'].update(related_files)
+        submodule_count += 1
+        
+remaining_by_dir = defaultdict(set)
 for node in G.nodes():
     if node not in nodes_in_submodules:
-        if node in G_intra:  # Only process the node if it exists in G_intra
-            related_files = list(nx.dfs_preorder_nodes(G_intra, node))
-            
-            # Include only nodes that are not already in other submodules
-            related_files = [file for file in related_files if file not in nodes_in_submodules]
-            nodes_in_submodules.update(related_files)
-            
-            if related_files:  # Only create a new submodule if there are nodes to add
-                submodules[f'S{submodule_count}'].update(related_files)
-                submodule_count += 1
-        else:
-            submodules[f'S{submodule_count}'].add(node)
-            submodule_count += 1
+        directory = get_directory(node)
+        remaining_by_dir[directory].add(node)
+        
+for directory, files in remaining_by_dir.items():
+    if files:
+        submodules[f'S{submodule_count}'].update(files)
+        submodule_count += 1
 
+# Print submodules        
 for submodule, files in submodules.items():
     print(f'{submodule}: {files}')
 
@@ -429,90 +642,9 @@ print(adj_matrix)
 #End of Structural Coupling Section
 
 
-# %%
-
-import os
-import javalang
-from collections import defaultdict
-
-import re
-
-def extract_comments(file_path):
-    with open(file_path, 'r') as file:
-        java_code = file.read()
-
-    # Regular expression pattern to match Java comments
-    pattern = r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"|\w+'
-
-    # Find all matches of the pattern in the Java code
-    matches = re.findall(pattern, java_code, re.DOTALL | re.MULTILINE)
-
-    # Filter out non-comment matches
-    comments = [match for match in matches if match.startswith('//') or match.startswith('/*')]
-
-    return comments
-
-
-def parse_java_file(file_path):
-    with open(file_path, 'r') as file:
-        java_code = file.read()
-    return javalang.parse.parse(java_code)
-
-def extract_lexical_information(java_tree):
-    class_info = defaultdict(list)
-
-    for path, node in java_tree:
-        if isinstance(node, javalang.parser.tree.ClassDeclaration):
-            class_info['CN'].append(node.name)  # Class Name
-        elif isinstance(node, javalang.parser.tree.FieldDeclaration):
-            class_info['AN'].extend([field.name for field in node.declarators])  # Attribute Name
-        elif isinstance(node, javalang.parser.tree.MethodDeclaration):
-            class_info['MN'].append(node.name)  # Method Name
-            class_info['PN'].extend([param.name for param in node.parameters])  # Parameter Name
-        elif isinstance(node, javalang.parser.tree.Statement):
-            class_info['SCS'].append(node)  # Source Code Statement
-    return class_info
-
-def analyze_directory(directory):
-    all_class_info = {}
-    for root, dirs, files in os.walk(directory):
-        for file in files:
-            if file.endswith('.java'):
-                file_path = os.path.join(root, file)
-                try:
-                    java_tree = parse_java_file(file_path)
-                    class_info = extract_lexical_information(java_tree)
-                    comments = extract_comments(file_path)
-                    class_info['CO'].extend( comments )  # Comments
-
-                    with open(file_path, 'r') as file:
-                        java_code = file.read()
-                    class_info['CODE'] = java_code
-                    all_class_info[file] = class_info
-                except Exception as e:
-                    print(f"Failed to parse {file_path} due to {str(e)}")
-    return all_class_info
-
-
-directory_path = "/home/amir/Desktop/MetricTool/java-uuid-generator-java-uuid-generator-3.1.5"  # Replace with your directory
-lexical_info = analyze_directory(directory_path)
-
-
-# %%
-class_id_to_name ={}
 
 def convert_class_id_to_name(submodules,lexical_info):
-    cnx = connect_to_database(host, user, password, database,port)
-        
-    query = '''
-select 
-    lc.class_id,
-    lc.class_name
-from list_class lc
-
-        '''
-    results = execute_query(cnx, query)
-    close_database_connection(cnx)
+    results = get_all_classes()
     if results:
         new_lexical_info = {}
         for submodule, class_ids in submodules.items():
@@ -825,13 +957,13 @@ def neighbourhood_function(state):
 initial_temperature = 100  # for example
 
 def annealing_schedule(temperature):
-    cooling_rate = 0.8  # for example
+    cooling_rate = 0.5  # for example
     return cooling_rate * temperature
 
 
 # %%
 candidate_state = simulated_annealing(initial_state=initial_state,energy_function=energy_function,neighbourhood_function=neighbourhood_function,annealing_schedule=annealing_schedule)
-print(candidate_state)
+print("Candidate State = ",candidate_state)
 
 # from multiprocessing import Pool
 
@@ -865,12 +997,16 @@ def find_IFN(set_dictionary, microservices, implement_relationship):
                 set_of_microservices.append((class1_microservice,class2_microservice))
             counter += 1
     len_of_unique_microservice_published_interface = len(set_of_microservices)
-    return counter/ len_of_unique_microservice_published_interface
+
+    if len_of_unique_microservice_published_interface == 0:
+        return 0
+    else:
+        return counter/ len_of_unique_microservice_published_interface
 
 
 
-IFN = find_IFN(set_dictionary=submodules,microservices=candidate_state,implement_relationship=inheritance_results) #Remember to change it to implement_results and check the corrrectness of desired query
-print(IFN)
+IFN = find_IFN(set_dictionary=submodules,microservices=candidate_state,implement_relationship=implement_results) #Remember to change it to implement_results and check the corrrectness of desired query
+print("IFN = ",IFN)
 
 # %%
 
@@ -1026,8 +1162,8 @@ def find_CHM(candidate_microservices, implementation_relationship):
 
 
 
-CHM = find_CHM(candidate_microservices=candidate_state, implementation_relationship=inheritance_results )
-print(CHM)
+CHM = find_CHM(candidate_microservices=candidate_state, implementation_relationship=implement_results )
+print("CHM = ",CHM)
 
 
 # %%
@@ -1092,8 +1228,8 @@ def find_CHD(candidate_microservices, implementation_relationship):
     CHD = sum(microservice_chds) / len(microservice_chds) if microservice_chds else 0
     return CHD
 
-CHD = find_CHD(candidate_microservices=candidate_state, implementation_relationship=inheritance_results)
-print(CHD)
+CHD = find_CHD(candidate_microservices=candidate_state, implementation_relationship=implement_results)
+print("CHD = ",CHD)
 
 
 # %%
@@ -1141,15 +1277,16 @@ def smq(microservices, graph):
         
         mq -= len(inter_edges) / (len(class_ids_for_microservice_1) * len(class_ids_for_microservice_2))
 
+    if len(microservices) == 1:
+        return 1
+
     mq /= len(microservices) * (len(microservices) - 1) / 2
     
     return mq
 
 SMQ = smq(candidate_state,G)
-print(SMQ)
+print("SMQ = ",SMQ)
 
-
-# %%
 
 # %%
 
@@ -1301,7 +1438,7 @@ def find_CMQ(candidate_microservices):
     return CMQ
 
 CMQ = find_CMQ(candidate_microservices=candidate_state)
-print(CMQ)
+print("CMQ = ",CMQ)
 
 
 # %%
@@ -1380,7 +1517,7 @@ def calculate_ICF(microservices, commit_history):
 
 
 ICF = calculate_ICF(candidate_state, commit_history)
-print(ICF)
+print("ICF = ",ICF)
 
 
 # %%
@@ -1424,10 +1561,12 @@ def compute_ecf(microservices, co_changes):
 co_change_count = count_co_changes(commit_history)
 ECF = compute_ecf(candidate_state, co_change_count)
 
-print(ECF)
+print("ECF = ",ECF)
 
 
 
 REI = ECF / ICF
 
-print(REI)
+print("REI = ",REI)
+
+
