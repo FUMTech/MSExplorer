@@ -8,10 +8,12 @@ host='127.0.0.1'
 user='root'
 password='root'
 # database = 'java-uuid-generator'
-database = 'ftgo-monolith'
+database = 'jpetstore-6.0.2'
+# database = 'ftgo-monolith'
 port = '3308'
+directory_path = "/home/amir/Desktop/PJ/MonoMicro/jpetstore-6-jpetstore-6.0.2"  # Replace with your directory
 # directory_path = "/home/amir/Desktop/MetricTool/java-uuid-generator-java-uuid-generator-3.1.5"  # Replace with your directory
-directory_path = "/home/amir/Desktop/PJ/MonoMicro/ftgo-monolith"  # Replace with your directory
+# directory_path = "/home/amir/Desktop/PJ/MonoMicro/ftgo-monolith"  # Replace with your directory
 
 # %%
 
@@ -199,6 +201,9 @@ def extract_lexical_information(java_tree):
             class_info['SCS'].append(node)  # Source Code Statement
         elif isinstance(node, javalang.parser.tree.EnumDeclaration):
             class_info['CN'].append(node.name)  # Enum Name
+        elif isinstance(node, javalang.parser.tree.InterfaceDeclaration):
+            class_info['CN'].append(node.name)  # Interface Name
+
     return class_info
 
 def analyze_directory(directory):
@@ -453,9 +458,14 @@ in_degrees = dict(G_inter.in_degree())
 out_degrees = dict(G_inter.out_degree())
 
 # Filter nodes based on given criteria
-inter_coupling_nodes = {node for node, deg in in_degrees.items() if deg > 3} | \
-                       {node for node, deg in out_degrees.items() if deg > 1}
+inter_coupling_nodes = {node for node, deg in in_degrees.items() if deg >= 3} & \
+                       {node for node, deg in out_degrees.items() if deg >= 1}
 
+# Sort by in-degree first, then out-degree because of two or more inter-coupling file occurance at the same directory as the class with more relation would take the intra coupling classes first
+inter_coupling_nodes = sorted(inter_coupling_nodes, key=lambda node: (in_degrees[node], out_degrees[node]))
+
+
+# inter_coupling_nodes.remove(22)
 # inter_coupling_nodes.remove(26)
 # inter_coupling_nodes.remove(31)
 
@@ -468,7 +478,8 @@ directories = defaultdict(set)
 for node in G.nodes():
     directory = get_directory(node)
     directories[directory].add(node)
-    
+
+# print(directories)
 related_files = []
 for node in inter_coupling_nodes:
     directory = get_directory(node)
@@ -500,9 +511,92 @@ for submodule, files in submodules.items():
 
 
 # %%
+
+import json
+
+data = {
+    "directories": {key: list(value) for key, value in directories.items()}
+,
+    "class_couplings": class_couplings,
+}
+
+with open("class_dependency_graph_variables.json", "w") as file:
+    json.dump(data, file)
+
+
 import matplotlib.pyplot as plt
-nx.draw(G, with_labels=True)
-plt.show()
+import pygraphviz as pgv
+
+# Create a new graph with ranksep and nodesep adjustments
+NG = pgv.AGraph(directed=True, strict=True, rankdir='LR', splines='curved', ranksep='0.6', nodesep='0.4')
+
+# Add nodes for each class
+for path, class_ids in directories.items():
+    with NG.subgraph(name="cluster_" + path) as c:
+        x = '/'.join(path.rsplit('/', 6)[1:])
+        c.graph_attr['label'] = x
+        c.graph_attr['penwidth'] = '2'  # Set the border width of the directory box
+        c.graph_attr['rounded'] = 'true'  # Round the corners of the directory box
+        
+        for class_id in class_ids:
+            if class_id in inter_coupling_nodes:
+                c.add_node(class_id, label="C"+str(class_id), color='grey', style='filled', width='1.5', height='1.5', fontsize='26')
+            else:
+                c.add_node(class_id, label="C"+str(class_id), width='1.5', height='1.5', fontsize='26')
+
+# Add edges based on class couplings
+for coupling in class_couplings:
+    source, _, dest, _ = coupling
+    NG.add_edge(source, dest, len='1.5', weight='1')  # Adjusted the constraint attribute
+
+# Save and visualize the graph
+NG.layout(prog="dot")
+NG.draw("class-level-dependency-graph.png", prog="dot", format='png')
+
+
+# %%
+
+
+
+submodule_names = {'S1':'catalog_service','S2':'actions','S3':'domain','S4':'mapper','S5':'other_services','S6':'test'}
+
+
+import json
+
+data = {
+    "submodule_names": submodule_names
+,
+    "class_couplings": class_couplings,
+    "submodules": {key: list(value) for key, value in submodules.items()},
+}
+
+with open("submodule_dependency_graph_variables.json", "w") as file:
+    json.dump(data, file)
+
+
+
+# Create a new graph with settings
+NG = pgv.AGraph(strict=True, directed=True, rankdir='LR', splines='curved', nodesep=1.0, ranksep=2.0)
+NG.node_attr['shape'] = 'box'
+
+# Add nodes for each submodule
+for sm_id, sm_name in submodule_names.items():
+    NG.add_node(sm_id, label=f"{sm_id}:{sm_name}")
+
+# Determine submodule dependencies and add edges
+added_edges = set()
+for coupling in class_couplings:
+    src_class, _, dest_class, _ = coupling
+    src_module = [sm for sm, classes in submodules.items() if src_class in classes][0]
+    dest_module = [sm for sm, classes in submodules.items() if dest_class in classes][0]
+    
+    if src_module != dest_module and (src_module, dest_module) not in added_edges:
+        NG.add_edge(src_module, dest_module)
+        added_edges.add((src_module, dest_module))
+
+# Save and visualize the graph
+NG.layout(prog="dot")
+NG.draw("submodule-dependency-graph.png", prog="dot", format='png')
 
 # %%
 import matplotlib.pyplot as plt
@@ -563,9 +657,9 @@ for source_class_id,source_module_name, referenced_class_id,referenced_module_na
         i = module_indices[module1]
         j = module_indices[module2]
                 # If a relationship is going out from the class, assign 2
-        adj_matrix[i, j] += 8.5
+        adj_matrix[i, j] += 8.5 if module1 != module2 else 0
         # If a relationship is coming into the class, assign 3
-        adj_matrix[j, i] += 8.5
+        adj_matrix[j, i] += 8.5 if module1 != module2 else 0
 
 for source_class_id,source_module_name, referenced_class_id,referenced_module_name in return_results:
     module1 = class_to_module.get(source_class_id)
@@ -574,21 +668,21 @@ for source_class_id,source_module_name, referenced_class_id,referenced_module_na
         i = module_indices[module1]
         j = module_indices[module2]
                 # If a relationship is going out from the class, assign 2
-        adj_matrix[i, j] += 1
+        adj_matrix[i, j] += 1 if module1 != module2 else 0
         # If a relationship is coming into the class, assign 3
-        adj_matrix[j, i] += 1
+        adj_matrix[j, i] += 1 if module1 != module2 else 0
 
 
 for source_class_id,source_module_name, referenced_class_id,referenced_module_name in implement_results:
     module1 = class_to_module.get(source_class_id)
     module2 = class_to_module.get(referenced_class_id)
     if module1 is not None and module2 is not None:
-        i = module_indices[module1]
+        i = module_indices[module1] 
         j = module_indices[module2]
                 # If a relationship is going out from the class, assign 2
-        adj_matrix[i, j] += 2
+        adj_matrix[i, j] += 2 if module1 != module2 else 0
         # If a relationship is coming into the class, assign 3
-        adj_matrix[j, i] += 2
+        adj_matrix[j, i] += 2 if module1 != module2 else 0
 
 
 for source_class_id,source_module_name, referenced_class_id,referenced_module_name in call_results:
@@ -598,9 +692,9 @@ for source_class_id,source_module_name, referenced_class_id,referenced_module_na
         i = module_indices[module1]
         j = module_indices[module2]
                 # If a relationship is going out from the class, assign 2
-        adj_matrix[i, j] += 2.5
+        adj_matrix[i, j] += 2.5 if module1 != module2 else 0
         # If a relationship is coming into the class, assign 3
-        adj_matrix[j, i] += 2.5
+        adj_matrix[j, i] += 2.5 if module1 != module2 else 0
 
 for source_class_id,source_module_name, referenced_class_id,referenced_module_name in referece_results:
     module1 = class_to_module.get(source_class_id)
@@ -609,9 +703,9 @@ for source_class_id,source_module_name, referenced_class_id,referenced_module_na
         i = module_indices[module1]
         j = module_indices[module2]
                 # If a relationship is going out from the class, assign 2
-        adj_matrix[i, j] += 3
+        adj_matrix[i, j] += 3 if module1 != module2 else 0
         # If a relationship is coming into the class, assign 3
-        adj_matrix[j, i] += 3
+        adj_matrix[j, i] += 3 if module1 != module2 else 0
 
 for source_class_id,source_module_name, referenced_class_id,referenced_module_name in is_of_type_results:
     module1 = class_to_module.get(source_class_id)
@@ -621,9 +715,9 @@ for source_class_id,source_module_name, referenced_class_id,referenced_module_na
         j = module_indices[module2]
 
         # If a relationship is going out from the class, assign 2
-        adj_matrix[i, j] += 2
+        adj_matrix[i, j] += 2 if module1 != module2 else 0
         # If a relationship is coming into the class, assign 3
-        adj_matrix[j, i] += 2
+        adj_matrix[j, i] += 2 if module1 != module2 else 0
 
 for source_class_id,source_module_name, referenced_class_id,referenced_module_name in has_parameter_results:
     module1 = class_to_module.get(source_class_id)
@@ -633,9 +727,9 @@ for source_class_id,source_module_name, referenced_class_id,referenced_module_na
         j = module_indices[module2]
 
         # If a relationship is going out from the class, assign 2
-        adj_matrix[i, j] += 3.5
+        adj_matrix[i, j] += 3.5 if module1 != module2 else 0
         # If a relationship is coming into the class, assign 3
-        adj_matrix[j, i] += 3.5 
+        adj_matrix[j, i] += 3.5  if module1 != module2 else 0
 
 print(adj_matrix)
 
@@ -644,7 +738,7 @@ print(adj_matrix)
 
 
 def convert_class_id_to_name(submodules,lexical_info):
-    results = get_all_classes()
+    results = all_classes
     if results:
         new_lexical_info = {}
         for submodule, class_ids in submodules.items():
@@ -656,7 +750,7 @@ def convert_class_id_to_name(submodules,lexical_info):
                 'SCS': [],
                 'CO': []
             }
-            for class_id,class_name in results:
+            for class_id,class_name,_ in results:
                     class_id_to_name[class_id] = class_name
                     if class_id in class_ids:
                         curr_class_name = ''
@@ -707,11 +801,13 @@ models = {category: train_model_for_category(category) for category in ['CN', 'A
 def get_vector(file, category):
     return models[category].infer_vector([str(element) for element in new_lexical_info[file][category]])
 
+
 # Calculate similarity between two java files for a specific category
 def calculate_similarity(file1, file2, category):
     vec1 = get_vector(file1, category)
     vec2 = get_vector(file2, category)
-    return cosine_similarity(vec1.reshape(1, -1), vec2.reshape(1, -1))[0][0]
+    similarity = cosine_similarity(vec1.reshape(1, -1), vec2.reshape(1, -1))
+    return similarity[0][0]
 
 # Compute total similarity for each pair of files
 
@@ -728,7 +824,12 @@ for i, module1 in enumerate(new_lexical_info):
         if i <= j:  # similarity matrix is symmetric, no need to compute twice
             total_similarity_ij = 0
             for category in ['CN', 'AN', 'MN', 'PN', 'SCS', 'CO']:
-                similarity = calculate_similarity(module1, module2, category)
+                if module1 == module2:
+                    similarity = 0
+                else:
+                    similarity = calculate_similarity(module1, module2, category)
+                    similarity = 0 if similarity < 0 else similarity
+
                 total_similarity_ij += coefficients[category] * similarity
             total_similarity[i, j] = total_similarity_ij
             total_similarity[j, i] = total_similarity_ij  # use symmetry of similarity
@@ -748,12 +849,33 @@ import numpy as np
 scaler = preprocessing.MinMaxScaler()
 
 # Normalize the matrix
-normalized_conseptual_matrix = scaler.fit_transform(total_similarity)
-normalized_structural_matrix = scaler.fit_transform(adj_matrix)
+reshaped_array = total_similarity.reshape(-1, 1)
+
+normalized_conseptual_matrix = scaler.fit_transform(reshaped_array)
+
+normalized_conseptual_matrix = normalized_conseptual_matrix.reshape(total_similarity.shape)
+
+# Cosine similarity boundaries (-1,1) and we make it normalize to (0,1). 
+# The point is that some similarities are negative.
+# So in normalization the relation of each submodule to itself can be nonzero and we should change it to zero in this step.
+for index, value in np.ndenumerate(normalized_conseptual_matrix):
+    if index[0] == index[1]:
+        normalized_conseptual_matrix[index] = 0
+
+
+
+
+
+reshaped_array = total_similarity.reshape(-1, 1)
+
+
+normalized_structural_matrix = scaler.fit_transform(reshaped_array)
+
+normalized_structural_matrix = normalized_structural_matrix.reshape(adj_matrix.shape)
 
 
 #Coupling mi, mj=w*WSCmi, mj+1-w*WCC(mi, mj)
-coupling  = normalized_conseptual_matrix * 0.8 + normalized_structural_matrix * 0.2
+coupling  = normalized_conseptual_matrix * 0.2 + normalized_structural_matrix * 0.8
 coupling
 
 # %%
@@ -774,7 +896,9 @@ def calculate_bmc_imc(coupling, state):
     n = len(state) 
     bmc = 0
     imc = 0
-    
+    between_max = 0
+    within_max = 0
+
     for i in range(n):
         for j in range(n):
             if i != j:
@@ -783,24 +907,22 @@ def calculate_bmc_imc(coupling, state):
                 
                 # Calculate between-module coupling
                 between_sum = 0
-                between_max = 0
                 for m1 in modules_i:
                     for m2 in modules_j:
                         c = get_coupling(m1, m2)
                         between_sum += c
                         between_max = max(between_max, c)
-                bmc += between_sum / (2 * between_max) if between_max != 0 else 0
+                bmc += between_sum
                 
                 # Calculate within-module coupling                
                 within_sum = 0
-                within_max = 0
                 for m1 in modules_i:
                     for m2 in modules_i:
                         if m1 != m2:
                             c = get_coupling(m1, m2)
                             within_sum += c
                             within_max = max(within_max, c)
-                imc += within_sum / (2 * within_max) if within_max != 0 else 0
+                imc += within_sum 
                 
     if len(state) == 1:
         # Special case - single module
@@ -808,8 +930,8 @@ def calculate_bmc_imc(coupling, state):
         imc = 1
     else:
         # Normal case        
-        bmc = bmc / (n * (n-1))
-        imc = imc / (n * (n-1))
+        bmc =  bmc / (2 * between_max) if between_max != 0 else 0
+        imc = imc / (2 * within_max) if within_max != 0 else 0
     
     return bmc, imc
 
@@ -821,7 +943,7 @@ print(bmc,imc)
 
 # %%
 initial_temperature = 100  # for example
-max_iterations = 5000
+max_iterations = 1000
 import random
 import math
 def simulated_annealing(initial_state, energy_function, neighbourhood_function, annealing_schedule):
@@ -837,7 +959,7 @@ def simulated_annealing(initial_state, energy_function, neighbourhood_function, 
 
         # If the neighbouring state is better, accept it
         # If it's worse, accept it with a probability dependent on the temperature and the energy difference
-        if (neighbour_energy < current_energy) or (random.uniform(0, 1) < math.exp((current_energy - neighbour_energy) / current_temperature)):
+        if (neighbour_energy > current_energy) :
             current_state = neighbour
             current_energy = neighbour_energy
 
@@ -879,14 +1001,15 @@ all_classes = get_classes_count()
 # %%
 from itertools import combinations
 
-
+cost_array = []
 def energy_function(state):
     # Initialize total cohesion and size (for MSI calculation)
     total_size = 0
 
+    # Calculate s_avg sigma
     for microservice in state:
         classes_count = find_number_of_classes_within_microservice(microservice)
-        total_size += classes_count **2
+        total_size += classes_count **2 # comment later 
 
     # Calculate average module size and MSI
     s_avg = total_size / all_classes #sigma len(microservice)**2(means number of classes in it) /n
@@ -904,7 +1027,7 @@ def energy_function(state):
     #eval metrics
     # curr_smq=smq(state,G)
     # smq_list.append(curr_smq)
-
+    cost_array.append({str(state) :cost  })
     # print("State=",state)
     # print("Cost=",cost)
 
@@ -929,7 +1052,7 @@ def neighbourhood_function(state):
     microservice1, microservice2 = random.sample(neighbour, 2)
 
     # Randomly decide whether to move a submodule or swap two submodules
-    if random.uniform(0, 1) < 0.5:  # 50% chance to move a submodule
+    if random.uniform(0, 1) <= 1:  # 50% chance to move a submodule
         if microservice1 and microservice2:  # Ensure neither microservice is empty
             # Select a random submodule from the first microservice to move to the second one
             submodule_to_move = random.sample(microservice1, 1)[0]
@@ -954,16 +1077,32 @@ def neighbourhood_function(state):
 
 
 # %%
-initial_temperature = 100  # for example
 
 def annealing_schedule(temperature):
-    cooling_rate = 0.5  # for example
+    cooling_rate = 0.98  # for example
     return cooling_rate * temperature
 
 
 # %%
 candidate_state = simulated_annealing(initial_state=initial_state,energy_function=energy_function,neighbourhood_function=neighbourhood_function,annealing_schedule=annealing_schedule)
 print("Candidate State = ",candidate_state)
+
+
+# Find the state with the maximum cost
+max_state = None
+max_cost = float('-inf')  # Initialize with negative infinity
+
+for entry in cost_array:
+    for state, cost in entry.items():
+        if cost > max_cost:
+            max_cost = cost
+            max_state = state
+
+# Output the result
+if max_state is not None:
+    print(f"The state with the maximum cost is {max_state} with cost {max_cost}.")
+else:
+    print("No data provided.")
 
 # from multiprocessing import Pool
 
