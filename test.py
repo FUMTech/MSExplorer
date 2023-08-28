@@ -15,6 +15,9 @@ directory_path = "/home/amir/Desktop/PJ/MonoMicro/jpetstore-6-jpetstore-6.0.2"  
 # directory_path = "/home/amir/Desktop/MetricTool/java-uuid-generator-java-uuid-generator-3.1.5"  # Replace with your directory
 # directory_path = "/home/amir/Desktop/PJ/MonoMicro/ftgo-monolith"  # Replace with your directory
 
+# Path to your local git project
+repo_path = '/home/amir/Desktop/PJ/MonoMicro/jpetstore-6'
+# repo_path = '/home/amir/Desktop/java-uuid-generator'
 # %%
 
 def connect_to_database(host, user, password, database,port):
@@ -273,8 +276,8 @@ where lm.method_class_id != lc.class_id
 '''
 has_parameter_results += execute_query(cnx, has_parameter_query)
 
-print(has_parameter_results)
-print('------------------------------has_parameter---------------------------------')
+# print(has_parameter_results)
+# print('------------------------------has_parameter---------------------------------')
 
 is_of_type_query = f'''
 SELECT 
@@ -299,8 +302,8 @@ where lf.field_class_id != lc.class_id
 is_of_type_results += execute_query(cnx, is_of_type_query)
 #removing records of system data type have to be added
 
-print(is_of_type_results)
-print('-------------------------------is_of_type--------------------------------')
+# print(is_of_type_results)
+# print('-------------------------------is_of_type--------------------------------')
 
 referece_query = '''
 SELECT
@@ -323,8 +326,8 @@ where at.attr_class_id != lm.method_class_id
 '''
 referece_results += execute_query(cnx, referece_query)
 
-print(referece_results)
-print('------------------------------referece---------------------------------')
+# print(referece_results)
+# print('------------------------------referece---------------------------------')
 
 
 call_query = '''
@@ -348,8 +351,8 @@ mcr.class_id != lm.method_class_id
 call_results += execute_query(cnx, call_query)
 
 
-print(call_results)
-print('-----------------------------call----------------------------------')
+# print(call_results)
+# print('-----------------------------call----------------------------------')
 
 
 implement_query = '''
@@ -374,8 +377,8 @@ where ls.class_id != lc1.class_id
 '''
 implement_results += execute_query(cnx, implement_query)
 
-print(implement_results)
-print('----------------------------implement-----------------------------------')
+# print(implement_results)
+# print('----------------------------implement-----------------------------------')
 
 
 return_query = '''
@@ -392,8 +395,8 @@ where lm.method_class_id != lc1.class_id
 '''
 return_results += execute_query(cnx, return_query)
 
-print(return_results)
-print('--------------------------------return-------------------------------')
+# print(return_results)
+# print('--------------------------------return-------------------------------')
 
 
 inheritance_query = '''
@@ -417,11 +420,14 @@ where ls.class_id != lc.class_id
 inheritance_results += execute_query(cnx, inheritance_query)
 
 
-print(inheritance_results)
-print('-------------------------------inheritance--------------------------------')
+# print(inheritance_results)
+# print('-------------------------------inheritance--------------------------------')
 
 
 close_database_connection(cnx)
+
+
+
 
 
 
@@ -431,12 +437,50 @@ class_couplings = inheritance_results + return_results + implement_results + cal
 # class_couplings
 
 
+# %%
+interfaces = []
+
+cnx = connect_to_database(host, user, password, database,port)
+    
+query = '''
+select 
+lc.class_id
+from list_class lc
+where lc.class_type = 1
+    '''
+results = execute_query(cnx, query)
+if results:
+    for interface in results:
+        interfaces.append(interface[0])
+
+close_database_connection(cnx)
+
+
+
+interface_relations = []
+def find_interface_relations(class_couplings):
+    if interfaces:
+        for pair in class_couplings:
+            source_id, source_module, ref_id, ref_module = pair
+            for interface in interfaces  :
+                if interface == source_id or interface == ref_id:
+                    interface_relations.append(pair)
+
+    return interface_relations
+
 def get_directory(class_id):
     for a_class in all_classes:
         if a_class[0] == class_id:
             return a_class[2]
 
 # %%
+
+def add_edge(G, node1, node2, weight=1):
+    if G.has_edge(node1, node2):
+        G[node1][node2]['weight'] += weight
+    else:
+        G.add_edge(node1, node2, weight=weight)
+
 import networkx as nx
 from collections import defaultdict
 
@@ -445,21 +489,82 @@ G = nx.DiGraph()
 G_intra = nx.DiGraph()  # Graph for intra-coupling only
 G_inter = nx.DiGraph()  # Graph for intra-coupling only
 
+
+class_couplings_set = set(class_couplings)
 for pair in class_couplings:
     source_id, source_module, ref_id, ref_module = pair
-    G.add_edge(source_id, ref_id)  # Add all edges to the graph
-    if source_module == ref_module:  # Add intra-coupling edges to the intra-coupling graph
-        G_intra.add_edge(source_id, ref_id)
+    # if ref_id in [23,24]:
+    #     print(pair)
+    # add_edge(G,source_id, ref_id)  # Add all edges to the graph
+    add_edge(G,source_id, ref_id)  # Add all edges to the graph
+
+    # if source_id == 20 and ref_id == 21 or source_id == 21 and ref_id == 20:
+    #     print(pair)
+
+    # if source_id == 21 and ref_id == 22 or source_id == 22 and ref_id == 21:
+    #     print(pair)
+
+    # if source_id == 22 and ref_id == 23 or source_id == 23 and ref_id == 22:
+    #     print(pair)
+
+
+    # if source_id == 23 and ref_id == 24 or source_id == 24 and ref_id == 23:
+    #     print(pair)
+
+
+    # if source_id == 21 and ref_id == 23 or source_id == 23 and ref_id == 21:
+    #     print(pair)
+
+
+    # if source_id == 21 and ref_id == 24 or source_id == 24 and ref_id == 21:
+    #     print(pair)
+
+
+    # if source_id == 22 and ref_id == 24 or source_id == 24 and ref_id == 22:
+    #     print(pair)
+
+
+    source_class_dir = get_directory(source_id)
+    dest_class_dir = get_directory(ref_id)
+
+    if source_class_dir == dest_class_dir:  # Add intra-coupling edges to the intra-coupling graph
+        add_edge(G_intra,source_id, ref_id)
     else:
-        G_inter.add_edge(source_id, ref_id)
+        add_edge(G_inter,source_id, ref_id)
 
 # Compute in-degree and out-degree per node
 in_degrees = dict(G_inter.in_degree())
 out_degrees = dict(G_inter.out_degree())
 
+# nodes_list=[]
+# for node1, deg1 in in_degrees.items():
+#     for node2, deg2 in out_degrees.items():
+#         if node1 == node2:
+#             print(node1,deg1+deg2) 
+inter_coupling_nodes = set()
+
+for node in G:
+    has_node = G_inter.has_node(node)
+
+    if not has_node:
+        continue
+
+    in_degree = sum([G_inter[u][node]['weight'] for u in G_inter.predecessors(node)])
+
+    # Calculate outdegree
+    out_degree = sum([G_inter[node][v]['weight'] for v in G_inter.successors(node) ])
+    
+    # if node in [24,23, 20]:
+    #     print(node,in_degree ,out_degree)
+
+    if in_degree >= 0 and out_degree >=0:
+        #  inter_coupling_nodes.add((node,in_degree,out_degree))
+         inter_coupling_nodes.add(node)
+
+
 # Filter nodes based on given criteria
-inter_coupling_nodes = {node for node, deg in in_degrees.items() if deg >= 3} & \
-                       {node for node, deg in out_degrees.items() if deg >= 1}
+# inter_coupling_nodes = {node for node, deg in in_degrees.items() if deg >= 3} & \
+#                        {node for node, deg in out_degrees.items() if deg >= 1}
 
 # Sort by in-degree first, then out-degree because of two or more inter-coupling file occurance at the same directory as the class with more relation would take the intra coupling classes first
 inter_coupling_nodes = sorted(inter_coupling_nodes, key=lambda node: (in_degrees[node], out_degrees[node]))
@@ -483,8 +588,13 @@ for node in G.nodes():
 related_files = []
 for node in inter_coupling_nodes:
     directory = get_directory(node)
-    if node in G_intra:
-        related_files = list(nx.dfs_preorder_nodes(G_intra.subgraph(directories[directory]), node))
+    if node in G:
+        related_nodes = directories[directory]
+        related_nodes = related_nodes - set(inter_coupling_nodes)
+        related_nodes.add(node)
+        subgraph = G.subgraph(related_nodes)
+        nodes = nx.dfs_preorder_nodes(subgraph,node)
+        related_files = list(nodes)
   
 
     related_files = [f for f in related_files if f not in nodes_in_submodules] 
@@ -506,8 +616,8 @@ for directory, files in remaining_by_dir.items():
         submodule_count += 1
 
 # Print submodules        
-for submodule, files in submodules.items():
-    print(f'{submodule}: {files}')
+# for submodule, files in submodules.items():
+    # print(f'{submodule}: {files}')
 
 
 # %%
@@ -545,7 +655,7 @@ for path, class_ids in directories.items():
                 c.add_node(class_id, label="C"+str(class_id), width='1.5', height='1.5', fontsize='26')
 
 # Add edges based on class couplings
-for coupling in class_couplings:
+for coupling in class_couplings_set:
     source, _, dest, _ = coupling
     NG.add_edge(source, dest, len='1.5', weight='1')  # Adjusted the constraint attribute
 
@@ -731,7 +841,7 @@ for source_class_id,source_module_name, referenced_class_id,referenced_module_na
         # If a relationship is coming into the class, assign 3
         adj_matrix[j, i] += 3.5  if module1 != module2 else 0
 
-print(adj_matrix)
+# print(adj_matrix)
 
 #End of Structural Coupling Section
 
@@ -835,7 +945,7 @@ for i, module1 in enumerate(new_lexical_info):
             total_similarity[j, i] = total_similarity_ij  # use symmetry of similarity
 
 # Now total_similarity is the combined similarity matrix
-print(total_similarity)
+# print(total_similarity)
 
 
 # %%
@@ -866,7 +976,7 @@ for index, value in np.ndenumerate(normalized_conseptual_matrix):
 
 
 
-reshaped_array = total_similarity.reshape(-1, 1)
+reshaped_array = adj_matrix.reshape(-1, 1)
 
 
 normalized_structural_matrix = scaler.fit_transform(reshaped_array)
@@ -876,256 +986,21 @@ normalized_structural_matrix = normalized_structural_matrix.reshape(adj_matrix.s
 
 #Coupling mi, mj=w*WSCmi, mj+1-w*WCC(mi, mj)
 coupling  = normalized_conseptual_matrix * 0.2 + normalized_structural_matrix * 0.8
-coupling
 
-# %%
-import numpy as np
+with open('coupling.json','w') as file:
+    json.dump({'normalized_conseptual_coupling_matrix':normalized_conseptual_matrix.tolist(),'normalized_structural_coupling_matrix':normalized_structural_matrix.tolist(),'submodules': {key: list(value) for key, value in submodules.items()},'class_id_to_name':class_id_to_name},file, indent=4)
 
-def get_coupling(submodule1, submodule2):
-    # Assuming the submodules are represented as strings like "S1", "S2", etc.
-    # Extract the indices from the submodule names
-    index1 = int(submodule1[1:]) - 1
-    index2 = int(submodule2[1:]) - 1
-
-    # Retrieve the coupling from the coupling matrix
-    output = coupling[index1][index2]
-
-    return output
-
-def calculate_bmc_imc(coupling, state):
-    n = len(state) 
-    bmc = 0
-    imc = 0
-    between_max = 0
-    within_max = 0
-
-    for i in range(n):
-        for j in range(n):
-            if i != j:
-                modules_i = state[i] 
-                modules_j = state[j]
-                
-                # Calculate between-module coupling
-                between_sum = 0
-                for m1 in modules_i:
-                    for m2 in modules_j:
-                        c = get_coupling(m1, m2)
-                        between_sum += c
-                        between_max = max(between_max, c)
-                bmc += between_sum
-                
-                # Calculate within-module coupling                
-                within_sum = 0
-                for m1 in modules_i:
-                    for m2 in modules_i:
-                        if m1 != m2:
-                            c = get_coupling(m1, m2)
-                            within_sum += c
-                            within_max = max(within_max, c)
-                imc += within_sum 
-                
-    if len(state) == 1:
-        # Special case - single module
-        bmc = 0 
-        imc = 1
-    else:
-        # Normal case        
-        bmc =  bmc / (2 * between_max) if between_max != 0 else 0
-        imc = imc / (2 * within_max) if within_max != 0 else 0
-    
-    return bmc, imc
-
-initial_state = [{submodule} for submodule in submodules.keys()]
-
-bmc, imc = calculate_bmc_imc(coupling, initial_state)  
-
-print(bmc,imc)
-
-# %%
-initial_temperature = 100  # for example
-max_iterations = 1000
-import random
-import math
-def simulated_annealing(initial_state, energy_function, neighbourhood_function, annealing_schedule):
-    current_state = initial_state
-    current_energy = energy_function(current_state)
-    current_temperature = initial_temperature
-    iterations = 0
-
-    while current_temperature > 0 and iterations < max_iterations:
-        neighbour = neighbourhood_function(current_state)
-        neighbour_energy = energy_function(neighbour)
-        iterations += 1
-
-        # If the neighbouring state is better, accept it
-        # If it's worse, accept it with a probability dependent on the temperature and the energy difference
-        if (neighbour_energy > current_energy) :
-            current_state = neighbour
-            current_energy = neighbour_energy
-
-        # Decrease the temperature
-        current_temperature = annealing_schedule(current_temperature)
-
-    return current_state
-
-
-# %%
-def find_number_of_classes_within_microservice(microservice):
-    sum =0
-    for submodule in microservice:
-        classes = submodules.get(submodule)
-        sum += len(classes)
-    return sum
-
-
-# %%
-import math
-
-def get_classes_count():
-    cnx = connect_to_database(host, user, password, database,port)
-        
-    query = '''
-SELECT COUNT(*)
-from list_class lc
-
-        '''
-    results = execute_query(cnx, query)
-    close_database_connection(cnx)
-    return results[0][0]
-
-
-all_classes = get_classes_count()
-
-
-
-# %%
-from itertools import combinations
-
-cost_array = []
-def energy_function(state):
-    # Initialize total cohesion and size (for MSI calculation)
-    total_size = 0
-
-    # Calculate s_avg sigma
-    for microservice in state:
-        classes_count = find_number_of_classes_within_microservice(microservice)
-        total_size += classes_count **2 # comment later 
-
-    # Calculate average module size and MSI
-    s_avg = total_size / all_classes #sigma len(microservice)**2(means number of classes in it) /n
-    s_star = all_classes / (0.1 * all_classes)  # assuming m* is 10% of total classes
-    w = 0.05  # penalty factor
-    MSI = math.exp(-0.5 * ((math.log(s_avg) - math.log(s_star)) / (w * math.log(all_classes))) ** 2)
-
-    BMCI, IMCI = calculate_bmc_imc(coupling, state)  
-
-
-    # Define how to combine cohesion and MSI into a single cost
-    # This could be a simple sum, a weighted sum, a product, etc.
-    cost = (IMCI/(IMCI+BMCI))**0.5 *   MSI**0.5  # Assumed alfa and beta coefficients 1.
-
-    #eval metrics
-    # curr_smq=smq(state,G)
-    # smq_list.append(curr_smq)
-    cost_array.append({str(state) :cost  })
-    # print("State=",state)
-    # print("Cost=",cost)
-
-    return cost
-
-
-# %%
-initial_state = [{submodule} for submodule in submodules.keys()]
-
-
-# %%
-import random
-
-def neighbourhood_function(state):
-    # Copy the state to not modify the original one
-    neighbour = [set(microservice) for microservice in state]
-
-    if len(neighbour) < 2:
-        return neighbour
-
-    # Select two different microservices
-    microservice1, microservice2 = random.sample(neighbour, 2)
-
-    # Randomly decide whether to move a submodule or swap two submodules
-    if random.uniform(0, 1) <= 1:  # 50% chance to move a submodule
-        if microservice1 and microservice2:  # Ensure neither microservice is empty
-            # Select a random submodule from the first microservice to move to the second one
-            submodule_to_move = random.sample(microservice1, 1)[0]
-            microservice1.remove(submodule_to_move)
-            microservice2.add(submodule_to_move)
-    else:  # 50% chance to swap two submodules
-        if len(microservice1) > 1 and len(microservice2) > 1:  # Ensure both microservices have at least two submodules
-            # Select a random submodule from each microservice
-            submodule1 = random.sample(microservice1, 1)[0]
-            submodule2 = random.sample(microservice2, 1)[0]
-            # Swap the submodules
-            microservice1.remove(submodule1)
-            microservice2.remove(submodule2)
-            microservice1.add(submodule2)
-            microservice2.add(submodule1)
-
-    # Remove empty microservices
-    neighbour = [microservice for microservice in neighbour if microservice]
-
-    return neighbour
-
-
+# %% 
 
 # %%
 
-def annealing_schedule(temperature):
-    cooling_rate = 0.98  # for example
-    return cooling_rate * temperature
-
-
-# %%
-candidate_state = simulated_annealing(initial_state=initial_state,energy_function=energy_function,neighbourhood_function=neighbourhood_function,annealing_schedule=annealing_schedule)
-print("Candidate State = ",candidate_state)
-
-
-# Find the state with the maximum cost
-max_state = None
-max_cost = float('-inf')  # Initialize with negative infinity
-
-for entry in cost_array:
-    for state, cost in entry.items():
-        if cost > max_cost:
-            max_cost = cost
-            max_state = state
-
-# Output the result
-if max_state is not None:
-    print(f"The state with the maximum cost is {max_state} with cost {max_cost}.")
-else:
-    print("No data provided.")
-
-# from multiprocessing import Pool
-
-# def parallel_simulated_annealing(n_processes, initial_states, energy_function, neighbourhood_function, annealing_schedule):
-#     # Create a pool of worker processes
-#     with Pool(n_processes) as pool:
-#         # Run simulated annealing in parallel with different initial statessolutions = parallel_simulated_annealing(4, initial_states, energy_function, neighbourhood_function, annealing_schedule)
-
-#         solutions = pool.starmap(simulated_annealing, [([initial_state], energy_function, neighbourhood_function, annealing_schedule) for initial_state in initial_states])
-
-#     return solutions
-
-# solutions = parallel_simulated_annealing(4, initial_state, energy_function, neighbourhood_function, annealing_schedule)
-
-
-# %%
-def find_IFN(set_dictionary, microservices, implement_relationship):
+def find_IFN(set_dictionary, microservices, interface_relationships):
     counter = 0
     set_of_microservices =[]
     # Create a mapping from class to submodule
     class_to_submodule = {cls: submodule for submodule, classes in set_dictionary.items() for cls in classes}
 
-    for class1, interface1, class2, interface2 in implement_relationship:
+    for class1, interface1, class2, interface2 in interface_relationships:
         # Find the microservices that contain each class
         class1_microservice = [ms for ms in microservices if class_to_submodule[class1] in ms][0]
         class2_microservice = [ms for ms in microservices if class_to_submodule[class2] in ms][0]
@@ -1144,79 +1019,9 @@ def find_IFN(set_dictionary, microservices, implement_relationship):
 
 
 
-IFN = find_IFN(set_dictionary=submodules,microservices=candidate_state,implement_relationship=implement_results) #Remember to change it to implement_results and check the corrrectness of desired query
-print("IFN = ",IFN)
+# IFN = find_IFN(set_dictionary=submodules,microservices=candidate_state,interface_relationships=find_interface_relations(class_couplings))
+# print("IFN = ",IFN)
 
-# %%
-
-# # Helper function to compute intersection over union
-# def iou(set1, set2):
-#     # Calculate the intersection of two sets and divide by their union
-#     return len(set1.intersection(set2)) / len(set1.union(set2))
-
-# def get_submodule_for_class_id(class_id):
-#     """Get the submodule name for a given class ID."""
-#     # Iterate through each submodule and its associated class IDs
-#     for submodule, class_ids in submodules.items():
-#         # If the class ID is found, return the submodule name
-#         if class_id in class_ids:
-#             return submodule
-#     # If the class ID is not found in any submodule, return None
-#     return None
-
-# # Compute the f_msg value for a pair of interfaces
-# def compute_fmsg(iface1, iface2):
-#     # Get the submodule names associated with the input and output class IDs of the first interface
-#     submodule1_input = get_submodule_for_class_id(iface1[0])
-#     submodule1_output = get_submodule_for_class_id(iface1[2])
-#     # Get the submodule names associated with the input and output class IDs of the second interface
-#     submodule2_input = get_submodule_for_class_id(iface2[0])
-#     submodule2_output = get_submodule_for_class_id(iface2[2])
-    
-#     # Calculate the parameter similarity for the two interfaces
-#     param_similarity = iou(submodules.get(submodule1_input, set()), submodules.get(submodule2_input, set()))
-#     # Calculate the return value similarity for the two interfaces
-#     return_value_similarity = iou(submodules.get(submodule1_output, set()), submodules.get(submodule2_output, set()))
-    
-#     # Return the average of parameter and return value similarities
-#     return (param_similarity + return_value_similarity) / 2
-
-# # Calculate CHM for each microservice
-# def find_CHM(candidate_microservices, implementation_relationship):
-#     # Initialize a list to store CHM values for each microservice
-#     microservice_chms = []
-
-#     # Iterate through each candidate microservice
-#     for microservice in candidate_microservices:
-#         fmsg_values = []
-        
-#         # Initialize a set to store all class IDs for the current microservice
-#         class_ids_for_microservice = set()
-#         for submodule in microservice:
-#             # Update the set with class IDs for each submodule in the microservice
-#             class_ids_for_microservice.update(submodules.get(submodule, set()))
-
-#         # Filter out interfaces related to the current microservice
-#         interfaces = [rel for rel in implementation_relationship if rel[0] in class_ids_for_microservice or rel[2] in class_ids_for_microservice]
-        
-#         # Calculate f_msg values for all unique pairs of interfaces for the microservice
-#         for i in range(len(interfaces)):
-#             for j in range(i+1, len(interfaces)):
-#                 fmsg_values.append(compute_fmsg(interfaces[i], interfaces[j]))
-        
-#         # If there are f_msg values, calculate and store the average for the current microservice
-#         if fmsg_values:  # Check for non-empty to avoid division by zero
-#             microservice_chms.append(sum(fmsg_values) / len(fmsg_values))
-
-#     # Calculate the average CHM across all microservices
-#     CHM = sum(microservice_chms) / len(microservice_chms) if microservice_chms else 0
-#     # Return the calculated CHM
-#     return CHM
-
-# # Find the CHM using the given candidate microservices and implementation relationships
-# CHM = find_CHM(candidate_microservices=candidate_state, implementation_relationship=inheritance_results)
-# # Print the calculated CHM
-# print(CHM)
 
 
 # %%
@@ -1256,7 +1061,7 @@ def compute_fmsg(signatures1, signatures2):
     
     return (param_similarity + return_value_similarity) / 2
 
-def find_CHM(candidate_microservices, implementation_relationship):
+def find_CHM(candidate_microservices, interface_relationships):
     microservice_chms = []
 
     def get_interface_code(interface_id):
@@ -1275,15 +1080,15 @@ def find_CHM(candidate_microservices, implementation_relationship):
             class_ids_for_microservice.update(submodules.get(submodule, set()))
 
         # Filter out interfaces related to the current microservice
-        interfaces = [rel for rel in implementation_relationship if rel[0] in class_ids_for_microservice]
+        microservice_interfaces = [interface for interface in interfaces if interface in class_ids_for_microservice]
 
-        for i in range(len(interfaces)):
-            first_interface_code = get_interface_code(interfaces[i][0])
+        for i in range(len(microservice_interfaces)):
+            first_interface_code = get_interface_code(microservice_interfaces[i])
             if first_interface_code == '':
                 continue
             signatures1 = extract_method_signatures(first_interface_code)
-            for j in range(i+1, len(interfaces)):
-                second_interface_code = get_interface_code(interfaces[j][0])
+            for j in range(i+1, len(microservice_interfaces)):
+                second_interface_code = get_interface_code(microservice_interfaces[j])
                 if second_interface_code == '':
                     continue
                 signatures2 = extract_method_signatures(second_interface_code)
@@ -1301,8 +1106,8 @@ def find_CHM(candidate_microservices, implementation_relationship):
 
 
 
-CHM = find_CHM(candidate_microservices=candidate_state, implementation_relationship=implement_results )
-print("CHM = ",CHM)
+# CHM = find_CHM(candidate_microservices=candidate_state, interface_relationships=find_interface_relations(class_couplings) )
+# print("CHM = ",CHM)
 
 
 # %%
@@ -1328,7 +1133,7 @@ def compute_fdom(terms1, terms2):
     #Compute fdom value for a pair of interfaces based on their domain terms
     return iou(terms1, terms2)
 
-def find_CHD(candidate_microservices, implementation_relationship):
+def find_CHD(candidate_microservices, interface_relationships):
     microservice_chds = []
 
     def get_interface_code(interface_id):
@@ -1344,15 +1149,15 @@ def find_CHD(candidate_microservices, implementation_relationship):
         for submodule in microservice:
             class_ids_for_microservice.update(submodules.get(submodule, set()))
 
-        interfaces = [rel for rel in implementation_relationship if rel[0] in class_ids_for_microservice]
+        microservice_interfaces = [interface for interface in interfaces if interface in class_ids_for_microservice]
 
-        for i in range(len(interfaces)):
-            first_interface_code = get_interface_code(interfaces[i][0])
+        for i in range(len(microservice_interfaces)):
+            first_interface_code = get_interface_code(microservice_interfaces[i])
             if first_interface_code == '':
                 continue
             terms1 = extract_domain_terms_from_interface(first_interface_code)
-            for j in range(i+1, len(interfaces)):
-                second_interface_code = get_interface_code(interfaces[j][0])
+            for j in range(i+1, len(microservice_interfaces)):
+                second_interface_code = get_interface_code(microservice_interfaces[j])
                 if second_interface_code == '':
                     continue
                 terms2 = extract_domain_terms_from_interface(second_interface_code)
@@ -1367,8 +1172,8 @@ def find_CHD(candidate_microservices, implementation_relationship):
     CHD = sum(microservice_chds) / len(microservice_chds) if microservice_chds else 0
     return CHD
 
-CHD = find_CHD(candidate_microservices=candidate_state, implementation_relationship=implement_results)
-print("CHD = ",CHD)
+# CHD = find_CHD(candidate_microservices=candidate_state, interface_relationships=find_interface_relations(class_couplings))
+# print("CHD = ",CHD)
 
 
 # %%
@@ -1423,8 +1228,8 @@ def smq(microservices, graph):
     
     return mq
 
-SMQ = smq(candidate_state,G)
-print("SMQ = ",SMQ)
+# SMQ = smq(candidate_state,G)
+# print("SMQ = ",SMQ)
 
 
 # %%
@@ -1576,15 +1381,14 @@ def find_CMQ(candidate_microservices):
     CMQ = sum(cohesion_values)/N - sum(coupling_values)/(N*(N-1)/2)
     return CMQ
 
-CMQ = find_CMQ(candidate_microservices=candidate_state)
-print("CMQ = ",CMQ)
+# CMQ = find_CMQ(candidate_microservices=candidate_state)
+# print("CMQ = ",CMQ)
 
 
 # %%
 import git
 
-# Path to your local git project
-repo_path = '/home/amir/Desktop/java-uuid-generator'
+
 repo = git.Repo(repo_path)
 
 commit_history = {}
@@ -1655,8 +1459,8 @@ def calculate_ICF(microservices, commit_history):
 
 
 
-ICF = calculate_ICF(candidate_state, commit_history)
-print("ICF = ",ICF)
+# ICF = calculate_ICF(candidate_state, commit_history)
+# print("ICF = ",ICF)
 
 
 # %%
@@ -1698,14 +1502,326 @@ def compute_ecf(microservices, co_changes):
 
 
 co_change_count = count_co_changes(commit_history)
-ECF = compute_ecf(candidate_state, co_change_count)
+# ECF = compute_ecf(candidate_state, co_change_count)
 
-print("ECF = ",ECF)
+# print("ECF = ",ECF)
 
 
 
-REI = ECF / ICF
+# REI = ECF / ICF
 
-print("REI = ",REI)
+# print("REI = ",REI)
+
+
+
+# %%
+
+import numpy as np
+
+def get_coupling(submodule1, submodule2):
+    # Assuming the submodules are represented as strings like "S1", "S2", etc.
+    # Extract the indices from the submodule names
+    index1 = int(submodule1[1:]) - 1
+    index2 = int(submodule2[1:]) - 1
+
+    # Retrieve the coupling from the coupling matrix
+    output = coupling[index1][index2]
+
+    return output
+
+def calculate_bmc_imc(coupling, state):
+    n = len(state) 
+    bmc = 0
+    imc = 0
+    between_max = 0
+    within_max = 0
+
+    for i in range(n):
+        for j in range(n):
+            if i != j:
+                modules_i = state[i] 
+                modules_j = state[j]
+                
+                # Calculate between-module coupling
+                between_sum = 0
+                for m1 in modules_i:
+                    for m2 in modules_j:
+                        c = get_coupling(m1, m2)
+                        between_sum += c
+                        between_max = max(between_max, c)
+                bmc += between_sum
+                
+                # Calculate within-module coupling                
+                within_sum = 0
+                for m1 in modules_i:
+                    for m2 in modules_i:
+                        if m1 != m2:
+                            c = get_coupling(m1, m2)
+                            within_sum += c
+                            within_max = max(within_max, c)
+                imc += within_sum 
+                
+    if len(state) == 1:
+        # Special case - single module
+        bmc = 0 
+        imc = 1
+    else:
+        # Normal case        
+        bmc =  bmc / (2 * between_max) if between_max != 0 else 0
+        imc = imc / (2 * within_max) if within_max != 0 else 0
+    
+    return bmc, imc
+
+initial_state = [{submodule} for submodule in submodules.keys()]
+
+bmc, imc = calculate_bmc_imc(coupling, initial_state)  
+
+# print(bmc,imc)
+
+# %%
+initial_temperature = 100  # for example
+max_iterations = 200000
+import random
+import math
+def simulated_annealing(initial_state, energy_function, neighbourhood_function, annealing_schedule):
+    current_state = initial_state
+    current_energy = energy_function(current_state)
+    current_temperature = initial_temperature
+    iterations = 0
+
+    while current_temperature > 1e-100 and iterations < max_iterations:
+        neighbour = neighbourhood_function(current_state)
+        neighbour_energy = energy_function(neighbour)
+        iterations += 1
+
+        # If the neighbouring state is better, accept it
+        # If it's worse, accept it with a probability dependent on the temperature and the energy difference
+        if (neighbour_energy > current_energy) :
+            current_state = neighbour
+            current_energy = neighbour_energy
+
+        # Decrease the temperature
+        current_temperature = annealing_schedule(current_temperature,iterations)
+
+    return current_state
+
+
+# %%
+def find_number_of_classes_within_microservice(microservice):
+    sum =0
+    for submodule in microservice:
+        classes = submodules.get(submodule)
+        sum += len(classes)
+    return sum
+
+
+# %%
+import math
+
+def get_classes_count():
+    cnx = connect_to_database(host, user, password, database,port)
+        
+    query = '''
+SELECT COUNT(*)
+from list_class lc
+
+        '''
+    results = execute_query(cnx, query)
+    close_database_connection(cnx)
+    return results[0][0]
+
+
+all_classes = get_classes_count()
+
+
+
+# %%
+from itertools import combinations
+
+cost_array = []
+def energy_function(state):
+    # Initialize total cohesion and size (for MSI calculation)
+    total_size = 0
+
+    # Calculate s_avg sigma
+    for microservice in state:
+        classes_count = find_number_of_classes_within_microservice(microservice)
+        total_size += classes_count **2 # comment later 
+
+    # Calculate average module size and MSI
+    s_avg = total_size / all_classes #sigma len(microservice)**2(means number of classes in it) /n
+    s_star = all_classes / (0.1 * all_classes)  # assuming m* is 10% of total classes
+    w = 0.05  # penalty factor
+    MSI = math.exp(-0.5 * ((math.log(s_avg) - math.log(s_star)) / (w * math.log(all_classes))) ** 2)
+
+    BMCI, IMCI = calculate_bmc_imc(coupling, state)  
+
+
+    # Define how to combine cohesion and MSI into a single cost
+    # This could be a simple sum, a weighted sum, a product, etc.
+    cost = (IMCI/(IMCI+BMCI))**0.5 *   MSI**0.5  # Assumed alfa and beta coefficients 1.
+
+    #eval metrics
+    # curr_smq=smq(state,G)
+    # smq_list.append(curr_smq)
+
+    IFN = find_IFN(set_dictionary=submodules,microservices=state,interface_relationships=find_interface_relations(class_couplings))
+
+    CHM = find_CHM(candidate_microservices=state, interface_relationships=find_interface_relations(class_couplings) )
+
+    CHD = find_CHD(candidate_microservices=state, interface_relationships=find_interface_relations(class_couplings))
+
+    
+    SMQ = smq(state,G)
+
+    ICF = calculate_ICF(state, commit_history)
+
+    ECF = compute_ecf(state, co_change_count)
+
+    cost_array.append({str(state) :(cost,IFN,CHM,CHD,SMQ,ICF,ECF)  })
+    # print("State=",state)
+    # print("Cost=",cost)
+
+    return cost
+
+
+# %%
+initial_state = [{submodule} for submodule in submodules.keys()]
+
+
+# %%
+import random
+
+def neighbourhood_function(state):
+    # Copy the state to not modify the original one
+    neighbour = [set(microservice) for microservice in state]
+
+    if len(neighbour) < 2:
+        return neighbour
+
+    # Select two different microservices
+    microservice1, microservice2 = random.sample(neighbour, 2)
+
+    # Randomly decide whether to move a submodule or swap two submodules
+    if random.uniform(0, 1) <= 1:  # 50% chance to move a submodule
+        if microservice1 and microservice2:  # Ensure neither microservice is empty
+            # Select a random submodule from the first microservice to move to the second one
+            submodule_to_move = random.sample(microservice1, 1)[0]
+            microservice1.remove(submodule_to_move)
+            microservice2.add(submodule_to_move)
+    else:  # 50% chance to swap two submodules
+        if len(microservice1) > 1 and len(microservice2) > 1:  # Ensure both microservices have at least two submodules
+            # Select a random submodule from each microservice
+            submodule1 = random.sample(microservice1, 1)[0]
+            submodule2 = random.sample(microservice2, 1)[0]
+            # Swap the submodules
+            microservice1.remove(submodule1)
+            microservice2.remove(submodule2)
+            microservice1.add(submodule2)
+            microservice2.add(submodule1)
+
+    # Remove empty microservices
+    neighbour = [microservice for microservice in neighbour if microservice]
+
+    return neighbour
+
+
+
+# %%
+
+def annealing_schedule(temperature,iteration):
+    return temperature * 0.99**iteration
+
+
+# %%
+candidate_state = simulated_annealing(initial_state=initial_state,energy_function=energy_function,neighbourhood_function=neighbourhood_function,annealing_schedule=annealing_schedule)
+print("Candidate State = ",candidate_state)
+
+
+# Find the state with the maximum cost
+
+max_cost_state = None
+max_cost = float('-inf')  # Initialize with negative infinity
+max_IFN = float('+inf')  # Initialize with negative infinity
+max_CHM = float('-inf')  # Initialize with negative infinity
+max_CHD = float('-inf')  # Initialize with negative infinity
+max_SMQ = float('-inf')  # Initialize with negative infinity
+max_ICF = float('-inf')  # Initialize with negative infinity
+max_ECF = float('+inf')  # Initialize with negative infinity
+max_IFN_state = None  # Initialize with negative infinity
+max_CHM_state = None  # Initialize with negative infinity
+max_CHD_state = None  # Initialize with negative infinity
+max_SMQ_state = None  # Initialize with negative infinity
+max_ICF_state = None  # Initialize with negative infinity
+max_ECF_state = None  # Initialize with negative infinity
+
+
+
+for entry in cost_array:
+    for state, values in entry.items():
+        cost = values[0]
+        IFN = values[1]
+        CHM = values[2]
+        CHD = values[3]
+        SMQ = values[4]
+        ICF = values[5]
+        ECF = values[6]
+        
+        if cost > max_cost:
+            max_cost = cost
+            max_cost_state = state
+        if IFN < max_IFN:
+            max_IFN = cost
+            max_IFN_state = state
+        if CHM > max_CHM:
+            max_CHM = cost
+            max_CHM_state = state
+        if CHD > max_CHD:
+            max_CHD = cost
+            max_CHD_state = state
+        if SMQ > max_SMQ:
+            max_SMQ = cost
+            max_SMQ_state = state
+        if ICF > max_ICF:
+            max_ICF = cost
+            max_ICF_state = state
+        if ECF < max_ECF:
+            max_ECF = cost
+            max_ECF_state = state
+
+# Output the result
+
+if max_cost_state is not None:
+    print(f"The state with the maximum cost is {max_cost_state} with cost {max_cost}.")
+
+if max_IFN is not None:
+    print(f"The state with the min IFN is {max_IFN} with cost {max_IFN_state}.")
+
+if max_CHM is not None:
+    print(f"The state with the maximum max_CHM is {max_CHM} with cost {max_CHM_state}.")
+
+if max_CHD is not None:
+    print(f"The state with the maximum max_CHD is {max_CHD} with cost {max_CHD_state}.")
+
+if max_SMQ is not None:
+    print(f"The state with the maximum max_SMQ is {max_SMQ} with cost {max_SMQ_state}.")
+
+if max_ICF is not None:
+    print(f"The state with the maximum max_ICF is {max_ICF} with cost {max_ICF_state}.")
+
+if max_ECF is not None:
+    print(f"The state with the min ECF is {max_ECF} with cost {max_ECF_state}.")
+# from multiprocessing import Pool
+
+# def parallel_simulated_annealing(n_processes, initial_states, energy_function, neighbourhood_function, annealing_schedule):
+#     # Create a pool of worker processes
+#     with Pool(n_processes) as pool:
+#         # Run simulated annealing in parallel with different initial statessolutions = parallel_simulated_annealing(4, initial_states, energy_function, neighbourhood_function, annealing_schedule)
+
+#         solutions = pool.starmap(simulated_annealing, [([initial_state], energy_function, neighbourhood_function, annealing_schedule) for initial_state in initial_states])
+
+#     return solutions
+
+# solutions = parallel_simulated_annealing(4, initial_state, energy_function, neighbourhood_function, annealing_schedule)
 
 
