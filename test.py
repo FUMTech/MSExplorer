@@ -1,4 +1,5 @@
 #%%
+# init constants for database
 import mysql.connector
 from collections import defaultdict
 import networkx as nx
@@ -19,7 +20,7 @@ directory_path = "/home/amir/Desktop/PJ/MonoMicro/jpetstore-6-jpetstore-6.0.2"  
 repo_path = '/home/amir/Desktop/PJ/MonoMicro/jpetstore-6'
 # repo_path = '/home/amir/Desktop/java-uuid-generator'
 # %%
-
+# define database functions for connecting,executing queries and printing results
 def connect_to_database(host, user, password, database,port):
     """Create a connection to a MySQL database."""
     cnx = mysql.connector.connect(
@@ -50,6 +51,7 @@ def close_database_connection(cnx):
 
 
 # %%
+# Extract conseptual coupling features from code + enums feature of structural coupling
 class_id_to_name ={}
 
 
@@ -83,6 +85,7 @@ def parse_java_file(file_path):
         java_code = file.read()
     return javalang.parse.parse(java_code)
 
+# find enums within the directories of the project
 def find_enums(directory):
     enums_list = []
     i=1
@@ -108,7 +111,7 @@ def find_enums(directory):
 
     return enums_list
 
-
+# add enums to the list of classes
 enums = find_enums(directory_path)
 for enum in enums:
     class_id_to_name[enum[2]] = enum[0].lower()
@@ -122,6 +125,7 @@ implement_results= []
 return_results = []
 inheritance_results = []
 
+# add relations of enums to classes
 def find_enum_relationships(tree, enums_info):
     
     class_package = tree.package.name if tree.package else "default"
@@ -195,13 +199,59 @@ def extract_lexical_information(java_tree):
     for path, node in java_tree:
         if isinstance(node, javalang.parser.tree.ClassDeclaration):
             class_info['CN'].append(node.name)  # Class Name
-        elif isinstance(node, javalang.parser.tree.FieldDeclaration):
+        elif isinstance(node, javalang.parser.tree. FieldDeclaration):
             class_info['AN'].extend([field.name for field in node.declarators])  # Attribute Name
         elif isinstance(node, javalang.parser.tree.MethodDeclaration):
             class_info['MN'].append(node.name)  # Method Name
             class_info['PN'].extend([param.name for param in node.parameters])  # Parameter Name
-        elif isinstance(node, javalang.parser.tree.Statement):
-            class_info['SCS'].append(node)  # Source Code Statement
+
+
+
+        elif isinstance(node, javalang.parser.tree.ClassReference):
+            class_info['SCS_ClassReference'].append(node.type.name)  # Source Code Statement
+
+        elif isinstance(node, javalang.parser.tree.MemberReference):
+            class_info['SCS_MemberReference'].append(node.member)  # Source Code Statement
+
+        elif isinstance(node, javalang.parser.tree.MethodReference):
+            class_info['SCS_MethodReference'].append(node.member + ":" + ",".join(arg.type.name for arg in node.arguments))  # Source Code Statement
+
+        elif isinstance(node, javalang.parser.tree.VoidClassReference):
+            class_info['SCS_VoidClassReference'].append(node.name)  # Source Code Statement
+
+        elif isinstance(node, javalang.parser.tree.SuperMemberReference):
+            class_info['SCS_SuperMemberReference'].append(node.member)  # Source Code Statement
+
+        elif isinstance(node, javalang.parser.tree.ConstantDeclaration):
+            class_info['SCS_ConstantDeclaration'].append(node.name)  # Source Code Statement
+
+        elif isinstance(node, javalang.parser.tree.VariableDeclaration):
+            class_info['SCS_VariableDeclaration'].append(node.type.name)  # Source Code Statement
+
+        elif isinstance(node, javalang.parser.tree.VariableDeclarator) :
+            class_info['SCS_VariableDeclarator'].append(node.name)  # Source Code Statement
+
+        elif isinstance(node, javalang.parser.tree.AnnotationDeclaration):
+            class_info['SCS_AnnotationDeclaration'].append(node.name)  # Source Code Statement
+
+        elif isinstance(node, javalang.parser.tree.ConstructorDeclaration) :
+            class_info['SCS_ConstructorDeclaration'].append(node.name)  # Source Code Statement
+
+        elif isinstance(node, javalang.parser.tree.LocalVariableDeclaration):
+            class_info['SCS_LocalVariableDeclaration'].append(node.name)  # Source Code Statement
+
+        elif isinstance(node, javalang.parser.tree.MethodInvocation):
+            class_info['SCS_ClassReference'].append(node.qualifier)  # Source Code Statement
+            class_info['SCS_MethodInvocation'].append(node.member)  # Source Code Statement
+
+        elif isinstance(node, javalang.parser.tree.FieldDeclaration):
+            class_info['SCS_FieldDeclaration'].append(node.type.name)  # Source Code Statement
+
+        elif isinstance(node, javalang.parser.tree.MethodDeclaration):
+            class_info['SCS_MethodDeclaration'].append(node.return_type.name)  # Source Code Statement
+
+
+
         elif isinstance(node, javalang.parser.tree.EnumDeclaration):
             class_info['CN'].append(node.name)  # Enum Name
         elif isinstance(node, javalang.parser.tree.InterfaceDeclaration):
@@ -468,60 +518,224 @@ def find_interface_relations(class_couplings):
 
     return interface_relations
 
+
+# %%
+
+
 def get_directory(class_id):
     for a_class in all_classes:
         if a_class[0] == class_id:
             return a_class[2]
 
+
+
 # %%
 
-def add_edge(G, node1, node2, weight=1):
+
+
+import numpy as np
+from collections import defaultdict
+
+module_indices = {class_name: index for index, class_name,_ in all_classes}
+
+n = len(all_classes)
+adj_matrix = np.zeros((n, n), dtype=int)
+
+# class_to_module = {class_: module for module, classes in all_classes.items() for class_ in classes}
+
+
+
+#inheritance_results + return_results + implement_results + call_results + referece_results + is_of_type_results + has_parameter_results 
+
+
+for source_class_id,source_module_name, referenced_class_id,referenced_module_name in inheritance_results:
+    # module1 = class_to_module.get(source_class_id)
+    # module2 = class_to_module.get(referenced_class_id)
+    # if module1 is not None and module2 is not None:
+    #     i = module_indices[module1]
+    #     j = module_indices[module2]
+        # If a relationship is going out from the class, assign 2
+    adj_matrix[source_class_id,referenced_class_id ] += 8.5 
+        # If a relationship is coming into the class, assign 3
+    adj_matrix[referenced_class_id, source_class_id] += 8.5 
+
+for source_class_id,source_module_name, referenced_class_id,referenced_module_name in return_results:
+    # module1 = class_to_module.get(source_class_id)
+    # module2 = class_to_module.get(referenced_class_id)
+    # if module1 is not None and module2 is not None:
+    #     i = module_indices[module1]
+    #     j = module_indices[module2]
+    adj_matrix[source_class_id,referenced_class_id ] += 1 
+        # If a relationship is coming into the class, assign 3
+    adj_matrix[referenced_class_id, source_class_id] += 1
+
+
+for source_class_id,source_module_name, referenced_class_id,referenced_module_name in implement_results:
+    # module1 = class_to_module.get(source_class_id)
+    # module2 = class_to_module.get(referenced_class_id)
+    # if module1 is not None and module2 is not None:
+    #     i = module_indices[module1] 
+    #     j = module_indices[module2]
+    adj_matrix[source_class_id,referenced_class_id ] += 2
+        # If a relationship is coming into the class, assign 3
+    adj_matrix[referenced_class_id, source_class_id] += 2
+
+
+for source_class_id,source_module_name, referenced_class_id,referenced_module_name in call_results:
+    # module1 = class_to_module.get(source_class_id)
+    # module2 = class_to_module.get(referenced_class_id)
+    # if module1 is not None and module2 is not None:
+    #     i = module_indices[module1]
+    #     j = module_indices[module2]
+    adj_matrix[source_class_id,referenced_class_id ] += 2.5
+        # If a relationship is coming into the class, assign 3
+    adj_matrix[referenced_class_id, source_class_id] += 2.5
+
+for source_class_id,source_module_name, referenced_class_id,referenced_module_name in referece_results:
+    # module1 = class_to_module.get(source_class_id)
+    # module2 = class_to_module.get(referenced_class_id)
+    # if module1 is not None and module2 is not None:
+    #     i = module_indices[module1]
+    #     j = module_indices[module2]
+                # If a relationship is going out from the class, assign 2
+    adj_matrix[source_class_id,referenced_class_id ] += 3
+        # If a relationship is coming into the class, assign 3
+    adj_matrix[referenced_class_id, source_class_id] += 3
+
+for source_class_id,source_module_name, referenced_class_id,referenced_module_name in is_of_type_results:
+    # module1 = class_to_module.get(source_class_id)
+    # module2 = class_to_module.get(referenced_class_id)
+    # if module1 is not None and module2 is not None:
+    #     i = module_indices[module1]
+    #     j = module_indices[module2]
+
+    adj_matrix[source_class_id,referenced_class_id ] += 2
+        # If a relationship is coming into the class, assign 3
+    adj_matrix[referenced_class_id, source_class_id] += 2
+
+for source_class_id,source_module_name, referenced_class_id,referenced_module_name in has_parameter_results:
+    # module1 = class_to_module.get(source_class_id)
+    # module2 = class_to_module.get(referenced_class_id)
+    # if module1 is not None and module2 is not None:
+    #     i = module_indices[module1]
+    #     j = module_indices[module2]
+
+    adj_matrix[source_class_id,referenced_class_id ] += 3.5
+        # If a relationship is coming into the class, assign 3
+    adj_matrix[referenced_class_id, source_class_id] += 3.5
+
+# print(adj_matrix)
+
+#End of Structural Coupling Section
+
+
+
+
+
+
+
+
+
+
+
+
+def add_edge(G, node1, node2, weight, type_of_relation):
     if G.has_edge(node1, node2):
-        G[node1][node2]['weight'] += weight
+        # Check if the type_of_relation key exists
+        if type_of_relation in G[node1][node2]:
+            G[node1][node2][type_of_relation]['weight'] += weight
+        else:
+            # Initialize the type_of_relation dictionary if it does not exist
+            G[node1][node2][type_of_relation] = {'weight': weight}
     else:
-        G.add_edge(node1, node2, weight=weight)
+        # Add a new edge with the type_of_relation attribute
+        G.add_edge(node1, node2)
+        G[node1][node2][type_of_relation] = {'weight': weight}
+
 
 import networkx as nx
 from collections import defaultdict
 
 # Create the directed graph
 G = nx.DiGraph()
+G_inheritance = nx.DiGraph()
+G_return = nx.DiGraph()
+G_implement = nx.DiGraph()
+G_call = nx.DiGraph()
+G_reference = nx.DiGraph()
+G_is_of_type = nx.DiGraph()
+G_has_parameter = nx.DiGraph()
 G_intra = nx.DiGraph()  # Graph for intra-coupling only
 G_inter = nx.DiGraph()  # Graph for intra-coupling only
 
 
 class_couplings_set = set(class_couplings)
+
+for pair in inheritance_results:
+    source_id, source_module, ref_id, ref_module = pair
+
+    add_edge(G,source_id, ref_id,8.5,'inheritance')  # Add all edges to the graph
+
+for pair in return_results:
+    source_id, source_module, ref_id, ref_module = pair
+
+    add_edge(G,source_id, ref_id,1,'return')  # Add all edges to the graph
+
+for pair in implement_results:
+    source_id, source_module, ref_id, ref_module = pair
+
+    add_edge(G,source_id, ref_id,2,'implement')  # Add all edges to the graph
+
+for pair in call_results:
+    source_id, source_module, ref_id, ref_module = pair
+
+    add_edge(G,source_id, ref_id,2.5,'call')  # Add all edges to the graph
+
+for pair in referece_results:
+    source_id, source_module, ref_id, ref_module = pair
+
+    add_edge(G,source_id, ref_id,3,'reference')  # Add all edges to the graph
+
+for pair in is_of_type_results:
+    source_id, source_module, ref_id, ref_module = pair
+
+    add_edge(G,source_id, ref_id,2,'is_of_type')  # Add all edges to the graph
+
+for pair in has_parameter_results:
+    source_id, source_module, ref_id, ref_module = pair
+
+    add_edge(G,source_id, ref_id,3.5,'has_parameter')  # Add all edges to the graph
+
+
+def discover_inter_coupling_classes(G):
+    # weight_sum = defaultdict(int)  # Dictionary to store the sum of weights for each edge
+
+    for node1, node2, attrs in G.edges(data=True):
+        sum=0
+        source_class_dir = get_directory(node1)
+        dest_class_dir = get_directory(node2)
+
+        if source_class_dir != dest_class_dir:  # Add intra-coupling edges to the intra-coupling graph
+
+            for relation,type_of_relation in attrs.items():
+                sum += type_of_relation.get('weight', 0)
+            
+            add_edge(G_inter,source_id, ref_id,sum,'all')
+        
+        else:
+
+            for relation,type_of_relation in attrs.items():
+                sum += type_of_relation.get('weight', 0)
+            
+            add_edge(G_intra,source_id, ref_id,sum,'all')
+
+
+discover_inter_coupling_classes(G)
+
 for pair in class_couplings:
     source_id, source_module, ref_id, ref_module = pair
-    # if ref_id in [23,24]:
-    #     print(pair)
-    # add_edge(G,source_id, ref_id)  # Add all edges to the graph
+
     add_edge(G,source_id, ref_id)  # Add all edges to the graph
-
-    # if source_id == 20 and ref_id == 21 or source_id == 21 and ref_id == 20:
-    #     print(pair)
-
-    # if source_id == 21 and ref_id == 22 or source_id == 22 and ref_id == 21:
-    #     print(pair)
-
-    # if source_id == 22 and ref_id == 23 or source_id == 23 and ref_id == 22:
-    #     print(pair)
-
-
-    # if source_id == 23 and ref_id == 24 or source_id == 24 and ref_id == 23:
-    #     print(pair)
-
-
-    # if source_id == 21 and ref_id == 23 or source_id == 23 and ref_id == 21:
-    #     print(pair)
-
-
-    # if source_id == 21 and ref_id == 24 or source_id == 24 and ref_id == 21:
-    #     print(pair)
-
-
-    # if source_id == 22 and ref_id == 24 or source_id == 24 and ref_id == 22:
-    #     print(pair)
 
 
     source_class_dir = get_directory(source_id)
@@ -741,110 +955,6 @@ def draw_graph(G, submodules):
 draw_graph(G, submodules)
 
 
-# %%
-
-
-
-import numpy as np
-from collections import defaultdict
-
-module_indices = {module: index for index, module in enumerate(submodules)}
-
-n = len(submodules)
-adj_matrix = np.zeros((n, n), dtype=int)
-
-class_to_module = {class_: module for module, classes in submodules.items() for class_ in classes}
-
-
-
-#inheritance_results + return_results + implement_results + call_results + referece_results + is_of_type_results + has_parameter_results 
-
-
-for source_class_id,source_module_name, referenced_class_id,referenced_module_name in inheritance_results:
-    module1 = class_to_module.get(source_class_id)
-    module2 = class_to_module.get(referenced_class_id)
-    if module1 is not None and module2 is not None:
-        i = module_indices[module1]
-        j = module_indices[module2]
-                # If a relationship is going out from the class, assign 2
-        adj_matrix[i, j] += 8.5 if module1 != module2 else 0
-        # If a relationship is coming into the class, assign 3
-        adj_matrix[j, i] += 8.5 if module1 != module2 else 0
-
-for source_class_id,source_module_name, referenced_class_id,referenced_module_name in return_results:
-    module1 = class_to_module.get(source_class_id)
-    module2 = class_to_module.get(referenced_class_id)
-    if module1 is not None and module2 is not None:
-        i = module_indices[module1]
-        j = module_indices[module2]
-                # If a relationship is going out from the class, assign 2
-        adj_matrix[i, j] += 1 if module1 != module2 else 0
-        # If a relationship is coming into the class, assign 3
-        adj_matrix[j, i] += 1 if module1 != module2 else 0
-
-
-for source_class_id,source_module_name, referenced_class_id,referenced_module_name in implement_results:
-    module1 = class_to_module.get(source_class_id)
-    module2 = class_to_module.get(referenced_class_id)
-    if module1 is not None and module2 is not None:
-        i = module_indices[module1] 
-        j = module_indices[module2]
-                # If a relationship is going out from the class, assign 2
-        adj_matrix[i, j] += 2 if module1 != module2 else 0
-        # If a relationship is coming into the class, assign 3
-        adj_matrix[j, i] += 2 if module1 != module2 else 0
-
-
-for source_class_id,source_module_name, referenced_class_id,referenced_module_name in call_results:
-    module1 = class_to_module.get(source_class_id)
-    module2 = class_to_module.get(referenced_class_id)
-    if module1 is not None and module2 is not None:
-        i = module_indices[module1]
-        j = module_indices[module2]
-                # If a relationship is going out from the class, assign 2
-        adj_matrix[i, j] += 2.5 if module1 != module2 else 0
-        # If a relationship is coming into the class, assign 3
-        adj_matrix[j, i] += 2.5 if module1 != module2 else 0
-
-for source_class_id,source_module_name, referenced_class_id,referenced_module_name in referece_results:
-    module1 = class_to_module.get(source_class_id)
-    module2 = class_to_module.get(referenced_class_id)
-    if module1 is not None and module2 is not None:
-        i = module_indices[module1]
-        j = module_indices[module2]
-                # If a relationship is going out from the class, assign 2
-        adj_matrix[i, j] += 3 if module1 != module2 else 0
-        # If a relationship is coming into the class, assign 3
-        adj_matrix[j, i] += 3 if module1 != module2 else 0
-
-for source_class_id,source_module_name, referenced_class_id,referenced_module_name in is_of_type_results:
-    module1 = class_to_module.get(source_class_id)
-    module2 = class_to_module.get(referenced_class_id)
-    if module1 is not None and module2 is not None:
-        i = module_indices[module1]
-        j = module_indices[module2]
-
-        # If a relationship is going out from the class, assign 2
-        adj_matrix[i, j] += 2 if module1 != module2 else 0
-        # If a relationship is coming into the class, assign 3
-        adj_matrix[j, i] += 2 if module1 != module2 else 0
-
-for source_class_id,source_module_name, referenced_class_id,referenced_module_name in has_parameter_results:
-    module1 = class_to_module.get(source_class_id)
-    module2 = class_to_module.get(referenced_class_id)
-    if module1 is not None and module2 is not None:
-        i = module_indices[module1]
-        j = module_indices[module2]
-
-        # If a relationship is going out from the class, assign 2
-        adj_matrix[i, j] += 3.5 if module1 != module2 else 0
-        # If a relationship is coming into the class, assign 3
-        adj_matrix[j, i] += 3.5  if module1 != module2 else 0
-
-# print(adj_matrix)
-
-#End of Structural Coupling Section
-
 
 
 def convert_class_id_to_name(submodules,lexical_info):
@@ -857,8 +967,21 @@ def convert_class_id_to_name(submodules,lexical_info):
                 'AN': [],
                 'MN': [],
                 'PN': [],
-                'SCS': [],
-                'CO': []
+    'SCS_ClassReference': [],
+    'SCS_MemberReference': [],
+    'SCS_MethodReference': [],
+    'SCS_VoidClassReference': [],
+    'SCS_SuperMemberReference': [],
+    'SCS_ConstantDeclaration': [],
+    'SCS_VariableDeclaration': [],
+    'SCS_VariableDeclarator': [],
+    'SCS_AnnotationDeclaration': [],
+    'SCS_ConstructorDeclaration': [],
+    'SCS_LocalVariableDeclaration': [],
+    'SCS_MethodInvocation': [],
+    'SCS_FieldDeclaration': [],
+    'SCS_MethodDeclaration': [],
+                                    'CO': []
             }
             for class_id,class_name,_ in results:
                     class_id_to_name[class_id] = class_name
@@ -876,7 +999,20 @@ def convert_class_id_to_name(submodules,lexical_info):
                         new_lexical_info[submodule]['AN']+= lexical_info[curr_class_name]['AN']
                         new_lexical_info[submodule]['MN']+= lexical_info[curr_class_name]['MN']
                         new_lexical_info[submodule]['PN']+= lexical_info[curr_class_name]['PN']
-                        new_lexical_info[submodule]['SCS']+= lexical_info[curr_class_name]['SCS']
+                        new_lexical_info[submodule]['SCS_ClassReference'] += lexical_info[curr_class_name]['SCS_ClassReference']
+                        new_lexical_info[submodule]['SCS_MemberReference'] += lexical_info[curr_class_name]['SCS_MemberReference']
+                        new_lexical_info[submodule]['SCS_MethodReference'] += lexical_info[curr_class_name]['SCS_MethodReference']
+                        new_lexical_info[submodule]['SCS_VoidClassReference'] += lexical_info[curr_class_name]['SCS_VoidClassReference']
+                        new_lexical_info[submodule]['SCS_SuperMemberReference'] += lexical_info[curr_class_name]['SCS_SuperMemberReference']
+                        new_lexical_info[submodule]['SCS_ConstantDeclaration'] += lexical_info[curr_class_name]['SCS_ConstantDeclaration']
+                        new_lexical_info[submodule]['SCS_VariableDeclaration'] += lexical_info[curr_class_name]['SCS_VariableDeclaration']
+                        new_lexical_info[submodule]['SCS_VariableDeclarator'] += lexical_info[curr_class_name]['SCS_VariableDeclarator']
+                        new_lexical_info[submodule]['SCS_AnnotationDeclaration'] += lexical_info[curr_class_name]['SCS_AnnotationDeclaration']
+                        new_lexical_info[submodule]['SCS_ConstructorDeclaration'] += lexical_info[curr_class_name]['SCS_ConstructorDeclaration']
+                        new_lexical_info[submodule]['SCS_LocalVariableDeclaration'] += lexical_info[curr_class_name]['SCS_LocalVariableDeclaration']
+                        new_lexical_info[submodule]['SCS_MethodInvocation'] += lexical_info[curr_class_name]['SCS_MethodInvocation']
+                        new_lexical_info[submodule]['SCS_FieldDeclaration'] += lexical_info[curr_class_name]['SCS_FieldDeclaration']
+                        new_lexical_info[submodule]['SCS_MethodDeclaration'] += lexical_info[curr_class_name]['SCS_MethodDeclaration']
                         new_lexical_info[submodule]['CO']+= lexical_info[curr_class_name]['CO']
     return new_lexical_info
 
@@ -884,44 +1020,173 @@ def convert_class_id_to_name(submodules,lexical_info):
 # %%
 
 
-from gensim.models.doc2vec import Doc2Vec, TaggedDocument
-from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 # Coefficients for each category
-coefficients = {'CN': 0.1413, 'AN': 0.1113, 'MN': 0.1313, 'PN': 0.1413, 'SCS': 0.1750, 'CO': 0.2225}
+coefficients = {'CN': 0.1413, 'AN': 0.1113, 'MN': 0.1313, 'PN': 0.1413, 'SCS_MethodDeclaration': 0.1750, 'SCS_ClassReference': 0.1750, 'SCS_MemberReference': 0.1750,
+    'SCS_MethodReference': 0.1750, 'SCS_VoidClassReference': 0.1750, 'SCS_SuperMemberReference': 0.1750,
+    'SCS_ConstantDeclaration': 0.1750, 'SCS_VariableDeclaration': 0.1750, 'SCS_VariableDeclarator': 0.1750,
+    'SCS_AnnotationDeclaration': 0.1750, 'SCS_ConstructorDeclaration': 0.1750,
+    'SCS_LocalVariableDeclaration': 0.1750, 'SCS_MethodInvocation': 0.1750,
+    'SCS_FieldDeclaration': 0.1750, 'CO': 0.2225}
 
-def train_model_for_category(category):
-    # Prepare documents for Doc2Vec
-    documents = []
-    for file, info in lexical_info.items():
-        if info[category]:  # Skip if category information is empty
-            words = [str(element) for element in info[category]]  # Convert each element in the category to a string
-            tagged_document = TaggedDocument(words=words, tags=[file])  # Create a TaggedDocument
-            documents.append(tagged_document)  # Add to the list of documents
+# def train_model_for_category(category):
+#     documents = []
+#     for file, info in lexical_info.items():
+#         if info[category]:
+#             # Convert category info to a single string
+#             doc = " ".join([str(element) for element in info[category]])
+#             documents.append(doc)
+    
+#     # Create TF-IDF vectorizer and fit it
+#     vectorizer = TfidfVectorizer() 
+#     vectorizer.fit(documents)
+#     return vectorizer
 
-    # Train Doc2Vec model
-    model = Doc2Vec(documents, vector_size=100, window=2, min_count=1, workers=4)
-    return model
+# # Train a vectorizer for each category
+# vectorizers = {category: train_model_for_category(category) for category in ['CN', 'AN', 'MN', 'PN', 'SCS', 'CO']}
 
-# Train a model for each category
-models = {category: train_model_for_category(category) for category in ['CN', 'AN', 'MN', 'PN', 'SCS', 'CO']}
-
-# Get vector for a java file for a specific category
-def get_vector(file, category):
-    return models[category].infer_vector([str(element) for element in new_lexical_info[file][category]])
+# # Get vector for a file for a specific category
+# def get_vector(file, category):
+#     doc = " ".join([str(element) for element in new_lexical_info[file][category]])
+#     return vectorizers[category].transform([doc])
 
 
-# Calculate similarity between two java files for a specific category
-def calculate_similarity(file1, file2, category):
-    vec1 = get_vector(file1, category)
-    vec2 = get_vector(file2, category)
-    similarity = cosine_similarity(vec1.reshape(1, -1), vec2.reshape(1, -1))
-    return similarity[0][0]
+import re
 
-# Compute total similarity for each pair of files
+def filter_out_unwanted_comments(comments):
 
-# file_list = list(lexical_info.keys())
+    # Pattern for license comments
+    license_pattern = re.compile(r'/\*\*.*?Licensed under the Apache License.*?limitations under the License\.\s\*/', re.DOTALL)
+    copy_right_pattern = re.compile(r'/\*\*.*?Copyright 2010-2016 the original author or authors.\n\.\s\*/', re.DOTALL)
+
+    # Pattern for author signatures
+    author_pattern = re.compile(r'/\*\*.*?@author.*?\*/', re.DOTALL)
+
+    filtered_comments = []
+    for comment in comments:
+        # Check if the comment matches any unwanted pattern
+        if "copyright" not in comment.lower() and 'author' not in comment.lower() and 'licensed' not in comment.lower():
+            filtered_comments.append(comment.replace('.','').replace('/','').replace("\\",''))
+
+    return filtered_comments
+
+
+from transformers import BertTokenizer, BertModel
+import torch
+from scipy.spatial.distance import cosine
+
+# Load pre-trained BERT model and tokenizer
+# model_name = "bert-base-uncased"
+# model = BertModel.from_pretrained(model_name)
+# tokenizer = BertTokenizer.from_pretrained(model_name)
+
+# def embed_text_using_bert(text):
+#     """
+#     Returns the BERT embedding for a given text.
+#     """
+#     tokens = tokenizer(text, return_tensors='pt', truncation=True, padding=True, max_length=512)
+#     with torch.no_grad():
+#         model_output = model(**tokens)
+#     # Use the [CLS] token representation as the embedding for the text
+#     return model_output.last_hidden_state[:, 0, :].numpy()
+
+from sentence_transformers import SentenceTransformer, util
+
+model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
+
+
+def compute_comment_similarity(class1_comments, class2_comments):
+    """
+    Computes the average similarity between comments of two classes using BERT embeddings.
+    """
+    # embedding1 = model.encode(sentence1, convert_to_tensor=True)
+    # embedding2 = model.encode(sentence2, convert_to_tensor=True)
+
+    # Compute cosine similarity between the two embeddings
+
+    class1_embeddings = [model.encode(comment, convert_to_tensor=True) for comment in class1_comments]
+    class2_embeddings = [model.encode(comment, convert_to_tensor=True) for comment in class2_comments]
+    if len(class1_embeddings) == 0 or len(class2_embeddings) == 0:
+        return 0
+      
+    similarities = []
+    for embed1 in class1_embeddings:
+        # Reshape the 2-D embedding to 1-D
+        # embed1 = embed1.flatten()
+        
+        for embed2 in class2_embeddings:
+            # Reshape the 2-D embedding to 1-D
+            # embed2 = embed2.flatten()
+            
+            # Compute cosine similarity
+            # similarity = 1 - cosine(embed1, embed2)
+            cosine_similarity = util.pytorch_cos_sim(embed1, embed2)
+            similarities.append(cosine_similarity)
+
+            # similarities.append(similarity)
+
+    # Assuming you want to return the average similarity
+    return sum(similarities) / len(similarities)
+
+
+
+def calculate_similarity(file1,file2,category):
+    doc1 = " ".join([str(element) for element in new_lexical_info[file1][category]])
+    doc2 = " ".join([str(element) for element in new_lexical_info[file2][category]])
+
+    if category == "CO":
+        # Filter the comments before processing
+        class1_comments = filter_out_unwanted_comments(new_lexical_info[file1][category])
+        class2_comments = filter_out_unwanted_comments(new_lexical_info[file2][category])
+        similarity = compute_comment_similarity(class1_comments, class2_comments)
+
+        return similarity
+
+    if "SCS" in category :
+        import difflib
+
+    # # Find common statements   
+        # common = set(doc1).intersection(set(doc2))
+
+    # # Calculate similarity
+        similarity = difflib.SequenceMatcher(None, doc1, doc2).ratio()
+
+
+    # vectorizer = TfidfVectorizer()
+    # vectors = vectorizer.fit_transform([doc1, doc2])
+    data_types_and_classes = [
+        "byte", "short", "int", "long", "float", "double", "boolean", "char", 
+        "string", "list", "map", "set", "arraylist", "hashmap", "hashset" , 'integer'
+        
+    ]
+    pattern = r"\b(" + "|".join(data_types_and_classes) + r")\b"
+    
+    import Levenshtein
+    elements_file1 = [re.sub(pattern, '', item.lower()).strip() for item in new_lexical_info[file1][category] if item is not None and re.sub(pattern, '', item.lower()).strip() != ""]
+    elements_file2 = [re.sub(pattern, '', item.lower()).strip() for item in new_lexical_info[file2][category] if item is not None and re.sub(pattern, '', item.lower()).strip() != ""]
+    
+
+
+    total_distances = 0
+    total_elements = 0
+    
+    for element1 in elements_file1:
+        for element2 in elements_file2:
+            distance = Levenshtein.distance(str(element1), str(element2))
+            normalized_distance = distance / max(len(str(element1)), len(str(element2)))
+            total_distances += (1 - normalized_distance)  # Convert distance to similarity
+            total_elements += 1
+    
+    # Average the similarities
+    if total_elements > 0:
+        sim = total_distances / total_elements
+        return sim
+    else:
+        return 0
+  
 
 new_lexical_info = convert_class_id_to_name(submodules,lexical_info)
 
@@ -933,7 +1198,12 @@ for i, module1 in enumerate(new_lexical_info):
     for j, module2 in enumerate(new_lexical_info):
         if i <= j:  # similarity matrix is symmetric, no need to compute twice
             total_similarity_ij = 0
-            for category in ['CN', 'AN', 'MN', 'PN', 'SCS', 'CO']:
+            for category in ['CN', 'AN', 'MN', 'PN','CO',
+                              'SCS_ClassReference','SCS_MemberReference','SCS_MethodReference',
+                               'SCS_VoidClassReference','SCS_SuperMemberReference','SCS_ConstantDeclaration',
+                                'SCS_VariableDeclaration','SCS_VariableDeclarator','SCS_AnnotationDeclaration',
+                                 'SCS_ConstructorDeclaration', 'SCS_LocalVariableDeclaration', 'SCS_ClassReference',
+                                   'SCS_MethodInvocation', 'SCS_FieldDeclaration', 'SCS_MethodDeclaration' ]:
                 if module1 == module2:
                     similarity = 0
                 else:
@@ -988,7 +1258,7 @@ normalized_structural_matrix = normalized_structural_matrix.reshape(adj_matrix.s
 coupling  = normalized_conseptual_matrix * 0.2 + normalized_structural_matrix * 0.8
 
 with open('coupling.json','w') as file:
-    json.dump({'normalized_conseptual_coupling_matrix':normalized_conseptual_matrix.tolist(),'normalized_structural_coupling_matrix':normalized_structural_matrix.tolist(),'submodules': {key: list(value) for key, value in submodules.items()},'class_id_to_name':class_id_to_name},file, indent=4)
+    json.dump({'conceptual':total_similarity.tolist(),'normalized_conseptual_coupling_matrix':normalized_conseptual_matrix.tolist(),'normalized_structural_coupling_matrix':normalized_structural_matrix.tolist(),'submodules': {key: list(value) for key, value in submodules.items()},'class_id_to_name':class_id_to_name},file, indent=4)
 
 # %% 
 
