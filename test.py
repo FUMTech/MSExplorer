@@ -555,9 +555,9 @@ for source_class_id,source_module_name, referenced_class_id,referenced_module_na
     #     i = module_indices[module1]
     #     j = module_indices[module2]
         # If a relationship is going out from the class, assign 2
-    adj_matrix[source_class_id,referenced_class_id ] += 8.5 
+    adj_matrix[source_class_id - 1 ,referenced_class_id -1 ] += 8.5 
         # If a relationship is coming into the class, assign 3
-    adj_matrix[referenced_class_id, source_class_id] += 8.5 
+    adj_matrix[referenced_class_id - 1, source_class_id - 1] += 8.5 
 
 for source_class_id,source_module_name, referenced_class_id,referenced_module_name in return_results:
     # module1 = class_to_module.get(source_class_id)
@@ -565,9 +565,9 @@ for source_class_id,source_module_name, referenced_class_id,referenced_module_na
     # if module1 is not None and module2 is not None:
     #     i = module_indices[module1]
     #     j = module_indices[module2]
-    adj_matrix[source_class_id,referenced_class_id ] += 1 
+    adj_matrix[source_class_id - 1 ,referenced_class_id -1 ] += 1 
         # If a relationship is coming into the class, assign 3
-    adj_matrix[referenced_class_id, source_class_id] += 1
+    adj_matrix[referenced_class_id - 1, source_class_id - 1] += 1
 
 
 for source_class_id,source_module_name, referenced_class_id,referenced_module_name in implement_results:
@@ -576,9 +576,9 @@ for source_class_id,source_module_name, referenced_class_id,referenced_module_na
     # if module1 is not None and module2 is not None:
     #     i = module_indices[module1] 
     #     j = module_indices[module2]
-    adj_matrix[source_class_id,referenced_class_id ] += 2
+    adj_matrix[source_class_id - 1 ,referenced_class_id -1 ] += 2
         # If a relationship is coming into the class, assign 3
-    adj_matrix[referenced_class_id, source_class_id] += 2
+    adj_matrix[referenced_class_id - 1, source_class_id - 1] += 2
 
 
 for source_class_id,source_module_name, referenced_class_id,referenced_module_name in call_results:
@@ -587,9 +587,9 @@ for source_class_id,source_module_name, referenced_class_id,referenced_module_na
     # if module1 is not None and module2 is not None:
     #     i = module_indices[module1]
     #     j = module_indices[module2]
-    adj_matrix[source_class_id,referenced_class_id ] += 2.5
+    adj_matrix[source_class_id - 1 ,referenced_class_id -1 ] += 2.5
         # If a relationship is coming into the class, assign 3
-    adj_matrix[referenced_class_id, source_class_id] += 2.5
+    adj_matrix[referenced_class_id - 1, source_class_id - 1] += 2.5
 
 for source_class_id,source_module_name, referenced_class_id,referenced_module_name in referece_results:
     # module1 = class_to_module.get(source_class_id)
@@ -598,9 +598,9 @@ for source_class_id,source_module_name, referenced_class_id,referenced_module_na
     #     i = module_indices[module1]
     #     j = module_indices[module2]
                 # If a relationship is going out from the class, assign 2
-    adj_matrix[source_class_id,referenced_class_id ] += 3
+    adj_matrix[source_class_id - 1 ,referenced_class_id -1 ] += 3
         # If a relationship is coming into the class, assign 3
-    adj_matrix[referenced_class_id, source_class_id] += 3
+    adj_matrix[referenced_class_id - 1, source_class_id - 1] += 3
 
 for source_class_id,source_module_name, referenced_class_id,referenced_module_name in is_of_type_results:
     # module1 = class_to_module.get(source_class_id)
@@ -609,9 +609,9 @@ for source_class_id,source_module_name, referenced_class_id,referenced_module_na
     #     i = module_indices[module1]
     #     j = module_indices[module2]
 
-    adj_matrix[source_class_id,referenced_class_id ] += 2
+    adj_matrix[source_class_id - 1 ,referenced_class_id -1 ] += 2
         # If a relationship is coming into the class, assign 3
-    adj_matrix[referenced_class_id, source_class_id] += 2
+    adj_matrix[referenced_class_id - 1, source_class_id - 1] += 2
 
 for source_class_id,source_module_name, referenced_class_id,referenced_module_name in has_parameter_results:
     # module1 = class_to_module.get(source_class_id)
@@ -620,9 +620,9 @@ for source_class_id,source_module_name, referenced_class_id,referenced_module_na
     #     i = module_indices[module1]
     #     j = module_indices[module2]
 
-    adj_matrix[source_class_id,referenced_class_id ] += 3.5
+    adj_matrix[source_class_id - 1 ,referenced_class_id -1 ] += 3.5
         # If a relationship is coming into the class, assign 3
-    adj_matrix[referenced_class_id, source_class_id] += 3.5
+    adj_matrix[referenced_class_id - 1, source_class_id - 1] += 3.5
 
 # print(adj_matrix)
 
@@ -720,31 +720,31 @@ def discover_inter_coupling_classes(G):
             for relation,type_of_relation in attrs.items():
                 sum += type_of_relation.get('weight', 0)
             
-            add_edge(G_inter,source_id, ref_id,sum,'all')
+            add_edge(G_inter,node1, node2,sum,'all')
         
         else:
 
             for relation,type_of_relation in attrs.items():
                 sum += type_of_relation.get('weight', 0)
             
-            add_edge(G_intra,source_id, ref_id,sum,'all')
+            add_edge(G_intra,node1, node2,sum,'all')
 
 
 discover_inter_coupling_classes(G)
 
-for pair in class_couplings:
-    source_id, source_module, ref_id, ref_module = pair
+# for pair in class_couplings:
+#     source_id, source_module, ref_id, ref_module = pair
 
-    add_edge(G,source_id, ref_id)  # Add all edges to the graph
+#     add_edge(G,source_id, ref_id)  # Add all edges to the graph
 
 
-    source_class_dir = get_directory(source_id)
-    dest_class_dir = get_directory(ref_id)
+#     source_class_dir = get_directory(source_id)
+#     dest_class_dir = get_directory(ref_id)
 
-    if source_class_dir == dest_class_dir:  # Add intra-coupling edges to the intra-coupling graph
-        add_edge(G_intra,source_id, ref_id)
-    else:
-        add_edge(G_inter,source_id, ref_id)
+#     if source_class_dir == dest_class_dir:  # Add intra-coupling edges to the intra-coupling graph
+#         add_edge(G_intra,source_id, ref_id)
+#     else:
+#         add_edge(G_inter,source_id, ref_id)
 
 # Compute in-degree and out-degree per node
 in_degrees = dict(G_inter.in_degree())
@@ -763,15 +763,15 @@ for node in G:
     if not has_node:
         continue
 
-    in_degree = sum([G_inter[u][node]['weight'] for u in G_inter.predecessors(node)])
+    in_degree = sum([G_inter[u][node]['all']['weight'] for u in G_inter.predecessors(node)])
 
     # Calculate outdegree
-    out_degree = sum([G_inter[node][v]['weight'] for v in G_inter.successors(node) ])
+    out_degree = sum([G_inter[node][v]['all']['weight'] for v in G_inter.successors(node) ])
     
     # if node in [24,23, 20]:
     #     print(node,in_degree ,out_degree)
 
-    if in_degree >= 0 and out_degree >=0:
+    if in_degree+ out_degree > 5:
         #  inter_coupling_nodes.add((node,in_degree,out_degree))
          inter_coupling_nodes.add(node)
 
@@ -784,185 +784,73 @@ for node in G:
 inter_coupling_nodes = sorted(inter_coupling_nodes, key=lambda node: (in_degrees[node], out_degrees[node]))
 
 
-# inter_coupling_nodes.remove(22)
-# inter_coupling_nodes.remove(26)
-# inter_coupling_nodes.remove(31)
-
-# Create submodules                   
-submodule_count = 1
-submodules = defaultdict(set)
-nodes_in_submodules = set()
-
-directories = defaultdict(set)
-for node in G.nodes():
-    directory = get_directory(node)
-    directories[directory].add(node)
-
-# print(directories)
-related_files = []
-for node in inter_coupling_nodes:
-    directory = get_directory(node)
-    if node in G:
-        related_nodes = directories[directory]
-        related_nodes = related_nodes - set(inter_coupling_nodes)
-        related_nodes.add(node)
-        subgraph = G.subgraph(related_nodes)
-        nodes = nx.dfs_preorder_nodes(subgraph,node)
-        related_files = list(nodes)
-  
-
-    related_files = [f for f in related_files if f not in nodes_in_submodules] 
-    nodes_in_submodules.update(related_files)
-    
-    if related_files:
-        submodules[f'S{submodule_count}'].update(related_files)
-        submodule_count += 1
-        
-remaining_by_dir = defaultdict(set)
-for node in G.nodes():
-    if node not in nodes_in_submodules:
-        directory = get_directory(node)
-        remaining_by_dir[directory].add(node)
-        
-for directory, files in remaining_by_dir.items():
-    if files:
-        submodules[f'S{submodule_count}'].update(files)
-        submodule_count += 1
-
-# Print submodules        
-# for submodule, files in submodules.items():
-    # print(f'{submodule}: {files}')
-
-
 # %%
+# Conceptual Coupling
+# def convert_class_id_to_name(submodules,lexical_info):
+#     results = all_classes
+#     if results:
+#         new_lexical_info = {}
+#         for submodule, class_ids in submodules.items():
+#             new_lexical_info[submodule] = {
+#                 'CN': [],
+#                 'AN': [],
+#                 'MN': [],
+#                 'PN': [],
+#     'SCS_ClassReference': [],
+#     'SCS_MemberReference': [],
+#     'SCS_MethodReference': [],
+#     'SCS_VoidClassReference': [],
+#     'SCS_SuperMemberReference': [],
+#     'SCS_ConstantDeclaration': [],
+#     'SCS_VariableDeclaration': [],
+#     'SCS_VariableDeclarator': [],
+#     'SCS_AnnotationDeclaration': [],
+#     'SCS_ConstructorDeclaration': [],
+#     'SCS_LocalVariableDeclaration': [],
+#     'SCS_MethodInvocation': [],
+#     'SCS_FieldDeclaration': [],
+#     'SCS_MethodDeclaration': [],
+#                                     'CO': []
+#             }
+#             for class_id,class_name,_ in results:
+#                     class_id_to_name[class_id] = class_name
+#                     if class_id in class_ids:
+#                         curr_class_name = ''
+#                         for file,info in lexical_info.items():
+#                             if curr_class_name != '':
+#                                 break
+#                             for cn in info['CN']:
+#                                 if class_name == cn.lower():
+#                                     curr_class_name = file
+#                                     break
+                        
+#                         new_lexical_info[submodule]['CN']+= lexical_info[curr_class_name]['CN']
+#                         new_lexical_info[submodule]['AN']+= lexical_info[curr_class_name]['AN']
+#                         new_lexical_info[submodule]['MN']+= lexical_info[curr_class_name]['MN']
+#                         new_lexical_info[submodule]['PN']+= lexical_info[curr_class_name]['PN']
+#                         new_lexical_info[submodule]['SCS_ClassReference'] += lexical_info[curr_class_name]['SCS_ClassReference']
+#                         new_lexical_info[submodule]['SCS_MemberReference'] += lexical_info[curr_class_name]['SCS_MemberReference']
+#                         new_lexical_info[submodule]['SCS_MethodReference'] += lexical_info[curr_class_name]['SCS_MethodReference']
+#                         new_lexical_info[submodule]['SCS_VoidClassReference'] += lexical_info[curr_class_name]['SCS_VoidClassReference']
+#                         new_lexical_info[submodule]['SCS_SuperMemberReference'] += lexical_info[curr_class_name]['SCS_SuperMemberReference']
+#                         new_lexical_info[submodule]['SCS_ConstantDeclaration'] += lexical_info[curr_class_name]['SCS_ConstantDeclaration']
+#                         new_lexical_info[submodule]['SCS_VariableDeclaration'] += lexical_info[curr_class_name]['SCS_VariableDeclaration']
+#                         new_lexical_info[submodule]['SCS_VariableDeclarator'] += lexical_info[curr_class_name]['SCS_VariableDeclarator']
+#                         new_lexical_info[submodule]['SCS_AnnotationDeclaration'] += lexical_info[curr_class_name]['SCS_AnnotationDeclaration']
+#                         new_lexical_info[submodule]['SCS_ConstructorDeclaration'] += lexical_info[curr_class_name]['SCS_ConstructorDeclaration']
+#                         new_lexical_info[submodule]['SCS_LocalVariableDeclaration'] += lexical_info[curr_class_name]['SCS_LocalVariableDeclaration']
+#                         new_lexical_info[submodule]['SCS_MethodInvocation'] += lexical_info[curr_class_name]['SCS_MethodInvocation']
+#                         new_lexical_info[submodule]['SCS_FieldDeclaration'] += lexical_info[curr_class_name]['SCS_FieldDeclaration']
+#                         new_lexical_info[submodule]['SCS_MethodDeclaration'] += lexical_info[curr_class_name]['SCS_MethodDeclaration']
+#                         new_lexical_info[submodule]['CO']+= lexical_info[curr_class_name]['CO']
+#     return new_lexical_info
 
-import json
-
-data = {
-    "directories": {key: list(value) for key, value in directories.items()}
-,
-    "class_couplings": class_couplings,
-}
-
-with open("class_dependency_graph_variables.json", "w") as file:
-    json.dump(data, file)
-
-
-import matplotlib.pyplot as plt
-import pygraphviz as pgv
-
-# Create a new graph with ranksep and nodesep adjustments
-NG = pgv.AGraph(directed=True, strict=True, rankdir='LR', splines='curved', ranksep='0.6', nodesep='0.4')
-
-# Add nodes for each class
-for path, class_ids in directories.items():
-    with NG.subgraph(name="cluster_" + path) as c:
-        x = '/'.join(path.rsplit('/', 6)[1:])
-        c.graph_attr['label'] = x
-        c.graph_attr['penwidth'] = '2'  # Set the border width of the directory box
-        c.graph_attr['rounded'] = 'true'  # Round the corners of the directory box
-        
-        for class_id in class_ids:
-            if class_id in inter_coupling_nodes:
-                c.add_node(class_id, label="C"+str(class_id), color='grey', style='filled', width='1.5', height='1.5', fontsize='26')
-            else:
-                c.add_node(class_id, label="C"+str(class_id), width='1.5', height='1.5', fontsize='26')
-
-# Add edges based on class couplings
-for coupling in class_couplings_set:
-    source, _, dest, _ = coupling
-    NG.add_edge(source, dest, len='1.5', weight='1')  # Adjusted the constraint attribute
-
-# Save and visualize the graph
-NG.layout(prog="dot")
-NG.draw("class-level-dependency-graph.png", prog="dot", format='png')
-
-
-# %%
-
-
-
-submodule_names = {'S1':'catalog_service','S2':'actions','S3':'domain','S4':'mapper','S5':'other_services','S6':'test'}
-
-
-import json
-
-data = {
-    "submodule_names": submodule_names
-,
-    "class_couplings": class_couplings,
-    "submodules": {key: list(value) for key, value in submodules.items()},
-}
-
-with open("submodule_dependency_graph_variables.json", "w") as file:
-    json.dump(data, file)
-
-
-
-# Create a new graph with settings
-NG = pgv.AGraph(strict=True, directed=True, rankdir='LR', splines='curved', nodesep=1.0, ranksep=2.0)
-NG.node_attr['shape'] = 'box'
-
-# Add nodes for each submodule
-for sm_id, sm_name in submodule_names.items():
-    NG.add_node(sm_id, label=f"{sm_id}:{sm_name}")
-
-# Determine submodule dependencies and add edges
-added_edges = set()
-for coupling in class_couplings:
-    src_class, _, dest_class, _ = coupling
-    src_module = [sm for sm, classes in submodules.items() if src_class in classes][0]
-    dest_module = [sm for sm, classes in submodules.items() if dest_class in classes][0]
-    
-    if src_module != dest_module and (src_module, dest_module) not in added_edges:
-        NG.add_edge(src_module, dest_module)
-        added_edges.add((src_module, dest_module))
-
-# Save and visualize the graph
-NG.layout(prog="dot")
-NG.draw("submodule-dependency-graph.png", prog="dot", format='png')
-
-# %%
-import matplotlib.pyplot as plt
-import networkx as nx
-
-# This function will draw a graph where the node color depends on the submodule
-def draw_graph(G, submodules):
-    plt.figure(figsize=(10, 10))  # Large figure size for more complex graphs
-
-    # Create a color map where each node gets a color based on its submodule
-    color_map = []
-    for node in G:
-        for i, submodule in enumerate(submodules.values()):
-            if node in submodule:
-                color_map.append(i)  # Use index for color
-                break
-        else:
-            color_map.append(len(submodules))  # If node not in any submodule, give it a different color
-
-    # Generate node sizes based on degrees
-    degrees = [G.degree(n) * 100 for n in G.nodes]
-
-    # Create a layout for the nodes
-    layout = nx.spring_layout(G, k=3)  # Increase this value to increase node distance (e.g., 0.3)
-
-    # Draw the graph using the color map, node sizes, and layout
-    nx.draw(G, with_labels=True, node_color=color_map, node_size=degrees, pos=layout)
-
-    plt.show()
-
-# Call the function with your graph and submodules
-draw_graph(G, submodules)
-
-
-
-
-def convert_class_id_to_name(submodules,lexical_info):
+def convert_class_id_to_name(lexical_info):
     results = all_classes
     if results:
         new_lexical_info = {}
-        for submodule, class_ids in submodules.items():
-            new_lexical_info[submodule] = {
+        for c_id, c_name,c_dir in all_classes:
+            new_lexical_info[c_id] = {
                 'CN': [],
                 'AN': [],
                 'MN': [],
@@ -983,37 +871,38 @@ def convert_class_id_to_name(submodules,lexical_info):
     'SCS_MethodDeclaration': [],
                                     'CO': []
             }
-            for class_id,class_name,_ in results:
-                    class_id_to_name[class_id] = class_name
-                    if class_id in class_ids:
-                        curr_class_name = ''
-                        for file,info in lexical_info.items():
-                            if curr_class_name != '':
-                                break
-                            for cn in info['CN']:
-                                if class_name == cn.lower():
-                                    curr_class_name = file
-                                    break
-                        
-                        new_lexical_info[submodule]['CN']+= lexical_info[curr_class_name]['CN']
-                        new_lexical_info[submodule]['AN']+= lexical_info[curr_class_name]['AN']
-                        new_lexical_info[submodule]['MN']+= lexical_info[curr_class_name]['MN']
-                        new_lexical_info[submodule]['PN']+= lexical_info[curr_class_name]['PN']
-                        new_lexical_info[submodule]['SCS_ClassReference'] += lexical_info[curr_class_name]['SCS_ClassReference']
-                        new_lexical_info[submodule]['SCS_MemberReference'] += lexical_info[curr_class_name]['SCS_MemberReference']
-                        new_lexical_info[submodule]['SCS_MethodReference'] += lexical_info[curr_class_name]['SCS_MethodReference']
-                        new_lexical_info[submodule]['SCS_VoidClassReference'] += lexical_info[curr_class_name]['SCS_VoidClassReference']
-                        new_lexical_info[submodule]['SCS_SuperMemberReference'] += lexical_info[curr_class_name]['SCS_SuperMemberReference']
-                        new_lexical_info[submodule]['SCS_ConstantDeclaration'] += lexical_info[curr_class_name]['SCS_ConstantDeclaration']
-                        new_lexical_info[submodule]['SCS_VariableDeclaration'] += lexical_info[curr_class_name]['SCS_VariableDeclaration']
-                        new_lexical_info[submodule]['SCS_VariableDeclarator'] += lexical_info[curr_class_name]['SCS_VariableDeclarator']
-                        new_lexical_info[submodule]['SCS_AnnotationDeclaration'] += lexical_info[curr_class_name]['SCS_AnnotationDeclaration']
-                        new_lexical_info[submodule]['SCS_ConstructorDeclaration'] += lexical_info[curr_class_name]['SCS_ConstructorDeclaration']
-                        new_lexical_info[submodule]['SCS_LocalVariableDeclaration'] += lexical_info[curr_class_name]['SCS_LocalVariableDeclaration']
-                        new_lexical_info[submodule]['SCS_MethodInvocation'] += lexical_info[curr_class_name]['SCS_MethodInvocation']
-                        new_lexical_info[submodule]['SCS_FieldDeclaration'] += lexical_info[curr_class_name]['SCS_FieldDeclaration']
-                        new_lexical_info[submodule]['SCS_MethodDeclaration'] += lexical_info[curr_class_name]['SCS_MethodDeclaration']
-                        new_lexical_info[submodule]['CO']+= lexical_info[curr_class_name]['CO']
+        # for class_id,class_name,_ in results:
+        #         class_id_to_name[class_id] = class_name
+        #         if class_id in class_ids:
+            curr_class_name = ''
+            for file,info in lexical_info.items():
+                if curr_class_name != '':
+                    break
+                for cn in info['CN']:
+                    if c_name == cn.lower():
+                        curr_class_name = file
+                        break
+                    
+            new_lexical_info[c_id]['CN']+= lexical_info[curr_class_name]['CN']
+            new_lexical_info[c_id]['AN']+= lexical_info[curr_class_name]['AN']
+            new_lexical_info[c_id]['MN']+= lexical_info[curr_class_name]['MN']
+            new_lexical_info[c_id]['PN']+= lexical_info[curr_class_name]['PN']
+            new_lexical_info[c_id]['SCS_ClassReference'] += lexical_info[curr_class_name]['SCS_ClassReference']
+            new_lexical_info[c_id]['SCS_MemberReference'] += lexical_info[curr_class_name]['SCS_MemberReference']
+            new_lexical_info[c_id]['SCS_MethodReference'] += lexical_info[curr_class_name]['SCS_MethodReference']
+            new_lexical_info[c_id]['SCS_VoidClassReference'] += lexical_info[curr_class_name]['SCS_VoidClassReference']
+            new_lexical_info[c_id]['SCS_SuperMemberReference'] += lexical_info[curr_class_name]['SCS_SuperMemberReference']
+            new_lexical_info[c_id]['SCS_ConstantDeclaration'] += lexical_info[curr_class_name]['SCS_ConstantDeclaration']
+            new_lexical_info[c_id]['SCS_VariableDeclaration'] += lexical_info[curr_class_name]['SCS_VariableDeclaration']
+            new_lexical_info[c_id]['SCS_VariableDeclarator'] += lexical_info[curr_class_name]['SCS_VariableDeclarator']
+            new_lexical_info[c_id]['SCS_AnnotationDeclaration'] += lexical_info[curr_class_name]['SCS_AnnotationDeclaration']
+            new_lexical_info[c_id]['SCS_ConstructorDeclaration'] += lexical_info[curr_class_name]['SCS_ConstructorDeclaration']
+            new_lexical_info[c_id]['SCS_LocalVariableDeclaration'] += lexical_info[curr_class_name]['SCS_LocalVariableDeclaration']
+            new_lexical_info[c_id]['SCS_MethodInvocation'] += lexical_info[curr_class_name]['SCS_MethodInvocation']
+            new_lexical_info[c_id]['SCS_FieldDeclaration'] += lexical_info[curr_class_name]['SCS_FieldDeclaration']
+            new_lexical_info[c_id]['SCS_MethodDeclaration'] += lexical_info[curr_class_name]['SCS_MethodDeclaration']
+            new_lexical_info[c_id]['CO']+= lexical_info[curr_class_name]['CO']
+
     return new_lexical_info
 
 
@@ -1188,7 +1077,8 @@ def calculate_similarity(file1,file2,category):
         return 0
   
 
-new_lexical_info = convert_class_id_to_name(submodules,lexical_info)
+# new_lexical_info = convert_class_id_to_name(submodules,lexical_info)
+new_lexical_info = convert_class_id_to_name(lexical_info)
 
 total_similarity = np.zeros((len(new_lexical_info.items()), len(new_lexical_info.items())))
 
@@ -1216,6 +1106,208 @@ for i, module1 in enumerate(new_lexical_info):
 
 # Now total_similarity is the combined similarity matrix
 # print(total_similarity)
+
+
+
+
+# Create submodules                   
+submodule_count = 1
+submodules = defaultdict(set)
+nodes_in_submodules = set()
+
+directories = defaultdict(set)
+for node in G.nodes():
+    directory = get_directory(node)
+    directories[directory].add(node)
+
+# print(directories)
+related_files = []
+for node in inter_coupling_nodes:
+    directory = get_directory(node)
+    if node in G:
+        related_nodes = directories[directory]
+        related_nodes = related_nodes - set(inter_coupling_nodes)
+        # related_nodes.add(node)
+
+
+
+        # Select the column (e.g., the second column)
+        column = total_similarity[:, node -1 ]  # Column index is 1 for the second column
+
+        # Specify the rows to consider (e.g., rows 1, 4, 6, 2)
+        rows_to_consider = list(related_nodes)
+
+        # Extract values from those rows in the specified column
+        selected_values = column[rows_to_consider]
+
+        # Number of maximum values you want to find (intra coupling treshold)
+        intra_coupling_treshold = min (2, len(rows_to_consider))
+
+        # Find the indices of the top X values in the selected values
+        indices = np.argpartition(selected_values, -intra_coupling_treshold)[-intra_coupling_treshold:]
+
+        # Sort indices if needed
+        sorted_indices = indices[np.argsort(selected_values[indices])[::-1]]
+
+        # Convert these indices back to the original row numbers
+        # original_row_indices = [rows_to_consider[index] for index in sorted_indices]
+        related_nodes = [node] + [ index +1 for index in sorted_indices]
+
+
+
+        subgraph = G.subgraph(related_nodes)
+        nodes = nx.dfs_preorder_nodes(subgraph,node)
+        related_files = list(nodes)
+  
+
+    related_files = [f for f in related_files if f not in nodes_in_submodules] 
+    nodes_in_submodules.update(related_files)
+    
+    if related_files:
+        submodules[f'S{submodule_count}'].update(related_files)
+        submodule_count += 1
+        
+remaining_by_dir = defaultdict(set)
+for node in G.nodes():
+    if node not in nodes_in_submodules:
+        # directory = get_directory(node)
+        submodules[f'S{submodule_count}'].update([node])
+        submodule_count += 1
+        # remaining_by_dir[directory].add(node)
+        
+# for directory, files in remaining_by_dir.items():
+#     if files:
+#         submodules[f'S{submodule_count}'].update(files)
+#         submodule_count += 1
+
+# Print submodules        
+# for submodule, files in submodules.items():
+    # print(f'{submodule}: {files}')
+
+
+# %%
+
+import json
+
+data = {
+    "directories": {key: list(value) for key, value in directories.items()}
+,
+    "class_couplings": class_couplings,
+}
+
+with open("class_dependency_graph_variables.json", "w") as file:
+    json.dump(data, file)
+
+
+import matplotlib.pyplot as plt
+import pygraphviz as pgv
+
+# Create a new graph with ranksep and nodesep adjustments
+NG = pgv.AGraph(directed=True, strict=True, rankdir='LR', splines='curved', ranksep='0.6', nodesep='0.4')
+
+# Add nodes for each class
+for path, class_ids in directories.items():
+    with NG.subgraph(name="cluster_" + path) as c:
+        x = '/'.join(path.rsplit('/', 6)[1:])
+        c.graph_attr['label'] = x
+        c.graph_attr['penwidth'] = '2'  # Set the border width of the directory box
+        c.graph_attr['rounded'] = 'true'  # Round the corners of the directory box
+        
+        for class_id in class_ids:
+            if class_id in inter_coupling_nodes:
+                c.add_node(class_id, label="C"+str(class_id), color='grey', style='filled', width='1.5', height='1.5', fontsize='26')
+            else:
+                c.add_node(class_id, label="C"+str(class_id), width='1.5', height='1.5', fontsize='26')
+
+# Add edges based on class couplings
+for coupling in class_couplings_set:
+    source, _, dest, _ = coupling
+    NG.add_edge(source, dest, len='1.5', weight='1')  # Adjusted the constraint attribute
+
+# Save and visualize the graph
+NG.layout(prog="dot")
+NG.draw("class-level-dependency-graph.png", prog="dot", format='png')
+
+
+# %%
+
+
+
+submodule_names = {'S1':'catalog_service','S2':'actions','S3':'domain','S4':'mapper','S5':'other_services','S6':'test'}
+
+
+import json
+
+data = {
+    "submodule_names": submodule_names
+,
+    "class_couplings": class_couplings,
+    "submodules": {key: list(value) for key, value in submodules.items()},
+}
+
+with open("submodule_dependency_graph_variables.json", "w") as file:
+    json.dump(data, file)
+
+
+
+# Create a new graph with settings
+NG = pgv.AGraph(strict=True, directed=True, rankdir='LR', splines='curved', nodesep=1.0, ranksep=2.0)
+NG.node_attr['shape'] = 'box'
+
+# Add nodes for each submodule
+for sm_id, sm_name in submodule_names.items():
+    NG.add_node(sm_id, label=f"{sm_id}:{sm_name}")
+
+# Determine submodule dependencies and add edges
+added_edges = set()
+for coupling in class_couplings:
+    src_class, _, dest_class, _ = coupling
+    src_module = [sm for sm, classes in submodules.items() if src_class in classes][0]
+    dest_module = [sm for sm, classes in submodules.items() if dest_class in classes][0]
+    
+    if src_module != dest_module and (src_module, dest_module) not in added_edges:
+        NG.add_edge(src_module, dest_module)
+        added_edges.add((src_module, dest_module))
+
+# Save and visualize the graph
+NG.layout(prog="dot")
+NG.draw("submodule-dependency-graph.png", prog="dot", format='png')
+
+# %%
+import matplotlib.pyplot as plt
+import networkx as nx
+
+# This function will draw a graph where the node color depends on the submodule
+def draw_graph(G, submodules):
+    plt.figure(figsize=(10, 10))  # Large figure size for more complex graphs
+
+    # Create a color map where each node gets a color based on its submodule
+    color_map = []
+    for node in G:
+        for i, submodule in enumerate(submodules.values()):
+            if node in submodule:
+                color_map.append(i)  # Use index for color
+                break
+        else:
+            color_map.append(len(submodules))  # If node not in any submodule, give it a different color
+
+    # Generate node sizes based on degrees
+    degrees = [G.degree(n) * 100 for n in G.nodes]
+
+    # Create a layout for the nodes
+    layout = nx.spring_layout(G, k=3)  # Increase this value to increase node distance (e.g., 0.3)
+
+    # Draw the graph using the color map, node sizes, and layout
+    nx.draw(G, with_labels=True, node_color=color_map, node_size=degrees, pos=layout)
+
+    plt.show()
+
+# Call the function with your graph and submodules
+draw_graph(G, submodules)
+
+
+
+
 
 
 # %%
