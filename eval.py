@@ -1,129 +1,90 @@
 import scipy.io
 import numpy as np
-import networkx
+import os
 import json
-
-# Replace 'your_file.mat' with the path to your .mat file
-mat = scipy.io.loadmat('/home/amir/Desktop/PJ/MonoMicro/JPetstore_k=4/workspace_60_JpetStore_1_run_.mat')
-unprocessed_best_sol = mat['BestSol'][0][0][0][0]
-class_names = mat['ClassName'][0][0]
-# print(unprocessed_best_sol)
-# mat is a dict with variable names as keys, and loaded matrices as values
-
-# Read JSON data from the file
-with open('/home/amir/Desktop/PJ/MonoMicro/coheision-extractor/jpetsore_coupling.json', 'r') as file:
-    data = json.load(file)
-
-# Restore the objects
-conceptual_coupling_matrix = np.array(data['conceptual_coupling_matrix'])
-normalized_conceptual_coupling_matrix = np.array(data['normalized_conceptual_coupling_matrix'])
-normalized_structural_coupling_matrix = np.array(data['normalized_structural_coupling_matrix'])
-structural_coupling_matrix = np.array(data['structural_coupling_matrix'])
-# submodules = {key: set(value) for key, value in data['submodules'].items()}
-class_id_to_name = dict(data['class_indices'])
-class_co_occurrences_in_execution_traces = data['class_co_eccurances_in_execution_traces']
-
-# Now you have the objects restored and you can use them as before
-coupling = 0.5 * normalized_conceptual_coupling_matrix + 0.5 *  normalized_structural_coupling_matrix
-
-
 import jsonpickle
+import networkx as nx
+import javalang
+from functools import lru_cache
 
-# Load JSON data from a file
-with open('jpetsore_eval.json', 'r') as f:
-    json_data = f.read()
+java_system_classes = {
+        'String', 'Object', 'Math', 'System', 'Thread', 'Exception', 'Error',
+        'List', 'Map', 'Set', 'Integer', 'Long', 'Double', 'Float', 'Boolean',
+        'Byte', 'Character', 'Short', 'Class', 'ClassLoader', 'Throwable',
+        'InputStream', 'OutputStream', 'File', 'Runnable', 'Thread', 'Arrays',
+        'Collections', 'HashMap', 'ArrayList', 'LinkedList', 'HashSet', 'TreeMap',
+        'TreeSet', 'Optional', 'Stream', 'Date', 'Locale', 'Calendar', 'TimeZone',
+        'RuntimeException', 'SQLException', 'IOException', 'InterruptedException',
+        'NoSuchElementException', 'IndexOutOfBoundsException', 'ConcurrentModificationException',
+        'NumberFormatException', 'IllegalArgumentException', 'IllegalStateException', 'UnsupportedOperationException','int','temp'
+    }
 
-# Deserialize with jsonpickle
-restored_objects = jsonpickle.decode(json_data)
 
-# Access the restored objects
-lexical_info = restored_objects['lexical_info']
-all_classes = restored_objects['all_classes']
-interface_relations = restored_objects['interface_relations']
-interfaces = restored_objects['interfaces']
-submodules = restored_objects['submodules']
-G = restored_objects['graph']
 
-# Now you can use lexical_info, all_classes, interface_relations, interfaces, submodules, and G as before
+def load_mat_data(file_path):
+    mat = scipy.io.loadmat(file_path)
+    unprocessed_best_sol = mat['BestSol'][0][0][0][0]
+    class_names = mat['ClassName'][0][0]
+    return unprocessed_best_sol, class_names
+
+def load_json_data(file_path):
+    with open(file_path, 'r') as file:
+        data = json.load(file)
+    return data
+
+def load_jsonpickle_data(file_path):
+    with open(file_path, 'r') as file:
+        data = jsonpickle.decode(file.read())
+    return data
+
 
 def custom_round(x):
-    if x - np.floor(x) < 0.5:
-        return np.floor(x)
-    else:
-        return np.ceil(x)
+    return np.floor(x) if x - np.floor(x) < 0.5 else np.ceil(x)
 
-# Apply the custom rounding rule to each element
-best_sol = np.array([custom_round(xi) for xi in unprocessed_best_sol])
-# print(best_sol)
+def group_classes_into_submodules(best_sol):
+    submodules = {}
 
+    # Iterate over each element in the array
+    for class_index, submodule_index in enumerate(best_sol, start=1):
+        # Create the submodule key as 'S' followed by the submodule index
+        submodule_key = f"S{int(class_index)}"
+        # Add the class index to the correct set in the dictionary
+        # if submodule_key not in submodules:
+        submodules[submodule_key] = set()
+        submodules[submodule_key].add(class_index)
+    return submodules
 
+def prepare_submodules(best_sol):
+    
+    # Get the unique submodules sorted
+    unique_submodules = np.unique(best_sol)
 
-# Initialize an empty dictionary to hold the submodules and class indices
-submodules = {}
+    # Initialize a list to hold the sets
+    candidate_state = []
 
-# Iterate over each element in the array
-for class_index, submodule_index in enumerate(best_sol, start=1):
-    # Create the submodule key as 'S' followed by the submodule index
-    submodule_key = f"S{int(class_index)}"
-    # Add the class index to the correct set in the dictionary
-    # if submodule_key not in submodules:
-    submodules[submodule_key] = set()
-    submodules[submodule_key].add(class_index)
-
-
-
-
-import numpy as np
-
-# Input array
-
-# Get the unique submodules sorted
-unique_submodules = np.unique(best_sol)
-
-# Initialize a list to hold the sets
-candidate_state = []
-
-# Iterate over the unique submodules
-for submodule in unique_submodules:
-    # Find the indices where the current submodule occurs
-    class_indices = np.where(best_sol == submodule)[0] + 1
-    # Create a set with the formatted strings
-    submodule_set = {"S{}".format(class_index) for class_index in class_indices}
-    # Append the set to the output list
-    candidate_state.append(submodule_set)
-
-# Display the resulting list of sets
-print(candidate_state)
-
+    # Iterate over the unique submodules
+    for submodule in unique_submodules:
+        # Find the indices where the current submodule occurs
+        class_indices = np.where(best_sol == submodule)[0] + 1
+        # Create a set with the formatted strings
+        submodule_set = {"S{}".format(class_index) for class_index in class_indices}
+        # Append the set to the output list
+        candidate_state.append(submodule_set)
+    return candidate_state
 
 def find_IFN(set_dictionary, microservices, interface_relationships):
     counter = 0
-    set_of_microservices =[]
-    # Create a mapping from class to submodule
+    set_of_microservices = []
     class_to_submodule = {cls: submodule for submodule, classes in set_dictionary.items() for cls in classes}
-
     for class1, interface1, class2, interface2 in interface_relationships:
-        # Find the microservices that contain each class
         class1_microservice = [ms for ms in microservices if class_to_submodule[class1] in ms][0]
         class2_microservice = [ms for ms in microservices if class_to_submodule[class2] in ms][0]
-
-        # If there is no overlap between the microservices of the two classes, increment the counter
         if not set(class1_microservice) & set(class2_microservice):
-            if (class1_microservice,class2_microservice) not in set_of_microservices:
-                set_of_microservices.append((class1_microservice,class2_microservice))
+            if (class1_microservice, class2_microservice) not in set_of_microservices:
+                set_of_microservices.append((class1_microservice, class2_microservice))
             counter += 1
-    len_of_unique_microservice_published_interface = len(set_of_microservices)
-
-    if len_of_unique_microservice_published_interface == 0:
-        return 0
-    else:
-        return counter/ len_of_unique_microservice_published_interface
-
-
-
-IFN = find_IFN(set_dictionary=submodules,microservices=candidate_state,interface_relationships=interface_relations)
-print("IFN = ",IFN)
-
+    len_unique = len(set_of_microservices)
+    return 0 if len_unique == 0 else counter / len_unique
 
 
 # %%
@@ -158,12 +119,17 @@ def compute_fmsg(signatures1, signatures2):
             total_param_similarity += iou(input_params1, input_params2)
             total_return_value_similarity += iou(set([return_type1]), set([return_type2]))
 
-    param_similarity = total_param_similarity / (len(signatures1) * len(signatures2))
-    return_value_similarity = total_return_value_similarity / (len(signatures1) * len(signatures2))
+    num_comparisons = len(signatures1) * len(signatures2)
+    if num_comparisons == 0:
+        param_similarity = 0
+        return_value_similarity = 0
+    else: 
+        param_similarity = total_param_similarity / (len(signatures1) * len(signatures2))
+        return_value_similarity = total_return_value_similarity / (len(signatures1) * len(signatures2))
     
     return (param_similarity + return_value_similarity) / 2
 
-def find_CHM(candidate_microservices, interface_relationships):
+def find_CHM(candidate_microservices,interface_relations  ,submodules, class_id_to_name, interfaces, lexical_info):
     microservice_chms = []
 
     def get_interface_code(interface_id):
@@ -203,17 +169,7 @@ def find_CHM(candidate_microservices, interface_relationships):
     CHM = sum(microservice_chms) / len(microservice_chms) if microservice_chms else 0 # What does N mean in here?
     return CHM
 
-# Assuming you have a dictionary mapping class IDs to their respective Java source codes
-
-
-
-
-CHM = find_CHM(candidate_microservices=candidate_state, interface_relationships=interface_relations )
-print("CHM = ",CHM)
-
-
-# %%
-
+@lru_cache(maxsize=2024)
 def extract_domain_terms_from_interface(java_code):
     #Extract domain terms (method names, parameter names, return types) from a Java interface
     tree = javalang.parse.parse(java_code)
@@ -235,7 +191,7 @@ def compute_fdom(terms1, terms2):
     #Compute fdom value for a pair of interfaces based on their domain terms
     return iou(terms1, terms2)
 
-def find_CHD(candidate_microservices, interface_relationships):
+def find_CHD(candidate_microservices, interface_relationships, submodules, class_id_to_name, interfaces, lexical_info):
     microservice_chds = []
 
     def get_interface_code(interface_id):
@@ -274,14 +230,12 @@ def find_CHD(candidate_microservices, interface_relationships):
     CHD = sum(microservice_chds) / len(microservice_chds) if microservice_chds else 0
     return CHD
 
-CHD = find_CHD(candidate_microservices=candidate_state, interface_relationships=interface_relations)
-print("CHD = ",CHD)
 
 
 # %%
 from itertools import combinations
 
-def smq(microservices, graph):
+def smq(microservices, graph, submodules):
 
     mq = 0
 
@@ -333,24 +287,24 @@ def smq(microservices, graph):
     
     return mq
 
-SMQ = smq(candidate_state,G)
-print("SMQ = ",SMQ)
-
 
 # %%
-
+@lru_cache(maxsize=2024)
 def extract_domain_terms_from_class(java_code): #Better to be caclulated by weights
+    if java_code is None:
+        domain_terms = set()
+        return domain_terms
     """Extract domain terms from a Java class."""
     tree = javalang.parse.parse(java_code)
     domain_terms = set()
 
-    for _, type_decl in tree.filter(javalang.tree.TypeDeclaration):
+    for _, type_decl in tree.filter(javalang.parser.tree.TypeDeclaration):
         # Add class name
         domain_terms.add(type_decl.name)
         
         # Add annotations
-        if type_decl.annotations:
-            domain_terms.update([annotation.name for annotation in type_decl.annotations])
+        # if type_decl.annotations:
+        #     domain_terms.update([annotation.name for annotation in type_decl.annotations])
 
 
             # 0:
@@ -370,7 +324,7 @@ def extract_domain_terms_from_class(java_code): #Better to be caclulated by weig
             # 7:
             # 'implements'
 
-        for _, method in type_decl.filter(javalang.tree.MethodDeclaration):
+        for _, method in type_decl.filter(javalang.parser.tree.MethodDeclaration):
             # Add method name
             domain_terms.add(method.name)
             
@@ -387,7 +341,7 @@ def extract_domain_terms_from_class(java_code): #Better to be caclulated by weig
                 domain_terms.add(method.return_type.name)
 
             # Add local variables from the method
-            for _, local_var in method.filter(javalang.tree.LocalVariableDeclaration):
+            for _, local_var in method.filter(javalang.parser.tree.LocalVariableDeclaration):
                 domain_terms.update([decl.name for decl in local_var.declarators])
 
             # 0:
@@ -410,7 +364,7 @@ def extract_domain_terms_from_class(java_code): #Better to be caclulated by weig
             # 'body'
 
         # Add field names and types
-        for _, field in type_decl.filter(javalang.tree.FieldDeclaration):
+        for _, field in type_decl.filter(javalang.parser.tree.FieldDeclaration):
             domain_terms.update([field_decl.name for field_decl in field.declarators])
             if field.type:
                 domain_terms.add(field.type.name)
@@ -428,11 +382,12 @@ def extract_domain_terms_from_class(java_code): #Better to be caclulated by weig
             # 'declarators'
 
         # Extract comments tooks long time(most spending in comparison to other parts)
-        for _, comment in type_decl.filter(javalang.tree.Documented):
-            if comment.documentation is not None:
-                domain_terms.update(comment.documentation.split('\n'))
-
-    return domain_terms
+        # for _, comment in type_decl.filter(javalang.parser.tree.Documented):
+        #     if comment.documentation is not None:
+        #         domain_terms.update(comment.documentation.split('\n'))
+    filtered_terms = {term for term in domain_terms if term not in java_system_classes}
+    return filtered_terms
+    # return domain_terms
 
 
 def compute_cohesion(classes, get_class_code):
@@ -458,7 +413,7 @@ def compute_coupling(classes_m, classes_n, get_class_code):
             total_links += iou(terms_m, terms_n)
     return total_links / (len(classes_m) * len(classes_n))
 
-def find_CMQ(candidate_microservices):
+def find_CMQ(candidate_microservices, submodules, class_id_to_name, lexical_info):
     N = len(candidate_microservices)
     cohesion_values = []
     coupling_values = []
@@ -486,135 +441,92 @@ def find_CMQ(candidate_microservices):
     CMQ = sum(cohesion_values)/N - sum(coupling_values)/(N*(N-1)/2)
     return CMQ
 
-CMQ = find_CMQ(candidate_microservices=candidate_state)
-print("CMQ = ",CMQ)
 
 
-# %%
-# import git
 
-# repo_path = '/home/amir/Desktop/PJ/MonoMicro/jpetstore-6-jpetstore-6.0.2'
+def process_data(mat_data, json_data, jsonpickle_data):
+    # Extracting necessary data
+    unprocessed_best_sol = mat_data[0]
+    class_id_to_name = json_data['class_indices']
+    interface_relations = jsonpickle_data['interface_relations']
+    interfaces = jsonpickle_data['interfaces']
+    lexical_info = jsonpickle_data['lexical_info']
+    G = jsonpickle_data['graph']
 
-# repo = git.Repo(repo_path)
+    # Custom rounding
+    best_sol = np.array([custom_round(xi) for xi in unprocessed_best_sol])
 
-# commit_history = {}
+    # Group classes into submodules
+    submodules = group_classes_into_submodules(best_sol)
 
-# # Iterate through each commit
-# for commit in repo.iter_commits():
-#     changed_files = set()
+    # Find unique submodules and prepare them for further analysis
+    candidate_state = prepare_submodules(best_sol)
 
-#     # For each changed file in the commit
-#     for item in commit.stats.files.keys():
-#         # Assuming Java files; adjust the condition for other languages
-#         if item.endswith('.java'):
-#             # Extract class name from file name
-#             class_name = item.split('/')[-1].replace('.java', '')
-#             changed_files.add(class_name)
-#     if len(changed_files) > 1 : # If one class in a commit changes, doesn't it mean that it is independent?
-#         commit_history[commit.hexsha] = changed_files
-
-# # Now commit_history dictionary is populated
-# # print(commit_history)
+    # Calculate IFN Metric
+    IFN = find_IFN(submodules, candidate_state, interface_relations)
+    CHM = find_CHM(candidate_state, interface_relations, submodules, class_id_to_name, interfaces, lexical_info)
+    CHD = find_CHD(candidate_state, interface_relations, submodules, class_id_to_name, interfaces, lexical_info)
+    SMQ = smq(candidate_state, G, submodules)
+    CMQ = find_CMQ(candidate_state, submodules, class_id_to_name, lexical_info)
 
 
-# from itertools import combinations
+    print("IFN =", IFN)
+    print("CHM =", CHM)
+    print("CHD =", CHD)
+    print("SMQ =", SMQ)
+    print("CMQ =", CMQ)
+    
+    # Additional metric calculations can be added here
 
-# # For each pair of classes, count how many times they changed together
-# def count_co_changes(commit_history):
-#     co_change_count = {}
+    return (IFN,CHM,CHD,SMQ,CMQ)
 
-#     for classes in commit_history.values():
-#         for class1, class2 in combinations(classes, 2):
-#             if (class1.lower(), class2.lower()) not in co_change_count:
-#                 co_change_count[(class1.lower(), class2.lower())] = 0
-#             co_change_count[(class1.lower(), class2.lower())] += 1
+
+json_file_path = "C:\\Users\\Amir\\Desktop\\PJ\\MonoMicroPJ\\MonoMicro\\coheision-extractor\\jpetstore_coupling.json"
+jsonpickle_file_path = "C:\\Users\\Amir\\Desktop\\PJ\\MonoMicroPJ\\MonoMicro\\coheision-extractor\\jpetstore_eval.json"
+
+json_data = load_json_data(json_file_path)
+jsonpickle_data = load_jsonpickle_data(jsonpickle_file_path)
+
+def process_directory(directory_path):
+
+    for root, dirs, files in os.walk(directory_path):
+        collected_metrics = {
+                                'IFN': [],
+                                'CHM': [],
+                                'CHD': [],
+                                'SMQ': [],
+                                'CMQ': []
+                            }
+        for file in files:
+            if file.endswith('.mat'):
+                mat_file_path = os.path.join(root, file)
+
+                mat_data = load_mat_data(mat_file_path)
+
+
+                metrics = process_data(mat_data, json_data, jsonpickle_data)
+
+                # Append each metric to its respective list in the dictionary
+                collected_metrics['IFN'].append(metrics[0])
+                collected_metrics['CHM'].append(metrics[1])
+                collected_metrics['CHD'].append(metrics[2])
+                collected_metrics['SMQ'].append(metrics[3])
+                collected_metrics['CMQ'].append(metrics[4])
+
+        # Check if the directory contained any .mat files to process
+        if collected_metrics['IFN']:
+            # Calculate the average for each metric in this directory
+            averages = {metric: np.mean(values) for metric, values in collected_metrics.items() if values}
+
+            # Construct the path for the results file
+            results_file_path = os.path.join(root, 'results.txt')
             
-#             if (class2.lower(), class1.lower()) not in co_change_count:
-#                 co_change_count[(class2.lower(), class1.lower())] = 0
-#             co_change_count[(class2.lower(), class1.lower())] += 1
-
-#     return co_change_count
-
+            # Write the results to a file in the current directory
+            with open(results_file_path, 'w') as result_file:
+                for metric, average in averages.items():
+                    result_file.write(f'Average {metric}: {average}\n')
 
 
-# def calculate_ICF(microservices, commit_history):
-#     co_change_count = count_co_changes(commit_history)
-#     total_icfm = 0
-
-#     for microservice in microservices:
-
-#         # Initialize a set to store all class IDs for the current microservice
-#         classes = set()
-#         for submodule in microservice:
-#             # Update the set with class IDs for each submodule in the microservice
-#             classes.update(submodules.get(submodule, set()))
-
-#         icfm = 0
-
-#         if len(microservice) > 1:
-#             for class1, class2 in combinations(classes, 2):
-#                 icfm += co_change_count.get((class_id_to_name[class1], class_id_to_name[class2]), 0)
-#         else:
-#             icfm = 1
-
-#         icfm /= len(classes) ** 2
-#         total_icfm += icfm
-
-#     ICF = total_icfm / len(microservices)
-#     return ICF
-
-
-
-# ICF = calculate_ICF(candidate_state, commit_history)
-# print("ICF = ",ICF)
-
-
-# # %%
-
-# # Assuming commit_history is already populated
-
-
-
-# def compute_ecf(microservices, co_changes):
-
-#     total_ecfm = 0
-
-#     all_classes = set()
-#     for microservice in microservices:
-#         for submodule in microservice:
-#             # Update the set with class IDs for each submodule in the microservice
-#             all_classes.update(submodules.get(submodule, set()))
-
-#     for microservice in microservices:
-#         Cm = set()
-#         for submodule in microservice:
-#             # Update the set with class IDs for each submodule in the microservice
-#             Cm.update(submodules.get(submodule, set()))
-
-#         Cm_prime = all_classes - Cm
-#         sum_f_cmt = 0
-
-#         for ci in Cm:
-#             for cj in Cm_prime:
-#                 pair = tuple(sorted([class_id_to_name[ci],class_id_to_name[cj]]))
-#                 sum_f_cmt += co_changes.get(pair, 0)
-
-#         ecfm = (1 / len(Cm)) * (1 / len(Cm_prime)) * sum_f_cmt
-#         total_ecfm += ecfm
-
-#     ECF = total_ecfm / len(microservices)
-#     return ECF
-
-
-
-# co_change_count = count_co_changes(commit_history)
-# ECF = compute_ecf(candidate_state, co_change_count)
-
-# print("ECF = ",ECF)
-
-
-
-# REI = ECF / ICF
-
-# print("REI = ",REI)
-
+if __name__ == "__main__":
+    root_directory = 'C:\\Users\\Amir\\Desktop\\PJ\\MonoMicroPJ\\MonoMicro\\JPetstore_k=4'
+    process_directory(root_directory)

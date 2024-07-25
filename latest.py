@@ -1,7 +1,7 @@
 # ! pip install --upgrade mysql-connector-python javalang
 # ! pip install transformers torch torchvision torchaudio sentence-transformers python-Levenshtein
 
-import mysql.connector
+# import mysql.connector
 from collections import defaultdict
 import networkx as nx
 import pandas as pd
@@ -12,10 +12,10 @@ import numpy as np
 # directory_path = "/home/amir/Desktop/PJ/MonoMicro/projects/SpringBlog"  # Replace with your directory
 # directory_path = "/home/amir/Desktop/PJ/MonoMicro/jpetstore-6-jpetstore-6.0.2"  # Replace with your directory
 # directory_path = "/home/ec2-user/SageMaker/mono2micro/xwiki-platform"  # Replace with your directory
-directory_path = "/home/amir/Desktop/PJ/MonoMicro/xwiki-platform-xwiki-platform-10.8"  # Replace with your directory
+directory_path = r'C:\\Users\\Amir\\Desktop\\PJ\\MonoMicroPJ\\MonoMicro\\xwiki-platform-xwiki-platform-10.8'  # Replace with your directory
 # traces_file_path = '/home/amir/Desktop/PJ/MonoMicro/FoSCI-master/traces/jpetstore.txt'
 # traces_file_path = '/home/amir/Desktop/PJ/MonoMicro/FoSCI-master/traces/springblog.txt'
-traces_file_path = '/home/amir/Desktop/PJ/MonoMicro/FoSCI-master/traces/xwiki-platform/xwiki-platform_trace.txt'
+traces_file_path = r'C:\\Users\\Amir\\Desktop\\PJ\\MonoMicroPJ\\MonoMicro\\FoSCI-master\\traces\\xwiki-platform\\xwiki-platform_trace.txt'
 
 # # Path to your local git project
 # repo_path = '/home/ec2-user/SageMaker/mono2micro/xwiki-platform'
