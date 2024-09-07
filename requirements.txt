@@ -1,3 +1,10 @@
 GitPython
 jsonpickle
 numpy
+javalang
+transformers
+torch
+torchvision
+torchaudio
+sentence-transformers
+python-Levenshtein
